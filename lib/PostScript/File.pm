@@ -1,14 +1,17 @@
 #---------------------------------------------------------------------
-package PostScript::File;
+use v6;
+class PostScript::File:auth<kjpye>:ver<0.0.1> {
 #
 # Copyright 2002, 2003 Christopher P Willmot.
 # Copyright 2011 Christopher J. Madsen
+# Copyright 2015 Kevin Pye
 #
 # Author: Chris Willmot         <chris AT willmot.co.uk>
 #         Christopher J. Madsen <perl AT cjmweb.net>
+#         Kevin Pye
 #
 # This program is free software; you can redistribute it and/or modify
-# it under the same terms as Perl 5 itself.
+# it under the same terms as Perl 5 or Perl 6.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,45 +21,116 @@ package PostScript::File;
 # ABSTRACT: Class for creating Adobe PostScript files
 #---------------------------------------------------------------------
 
-use 5.008;
-our $VERSION = '2.20';          ## no critic
+has $!VERSION = '0.0.1';
 # This file is part of {{$dist}} {{$dist_version}} ({{$date}})
 
-use strict;
-use warnings;
-use Carp 'croak';
-use File::Spec ();
-use Scalar::Util 'openhandle';
-use Exporter 5.57 'import';
-
-our %EXPORT_TAGS = (metrics_methods => [qw(
-  encode_text decode_text convert_hyphens set_auto_hyphen
-)]);
-
-our @EXPORT_OK = (qw(check_tilde check_file incpage_label incpage_roman
-                    array_as_string pstr quote_text str),
-                  # These are only for PostScript::File::Metrics:
-                  @{ $EXPORT_TAGS{metrics_methods} });
-
-# Prototypes for functions only
- ## no critic (ProhibitSubroutinePrototypes)
- sub incpage_label ($);
- sub incpage_roman ($);
- sub check_tilde ($);
- sub check_file ($;$$);
- ## use critic
-
-# global constants
-our %encoding_def; # defined near _set_reencode
-
-our ($t1ascii, $ttftotype42);
-BEGIN {
-  # Program to convert .pfb fonts to .pfa on STDOUT:
-  $t1ascii     = 't1ascii'     unless defined $t1ascii;
-  # Program to convert .ttf fonts to .pfa on STDOUT:
-  $ttftotype42 = 'ttftotype42' unless defined $ttftotype42;
+sub croak() {
+    die($_);
 }
 
+#use Carp 'croak';
+#use File::Spec ();
+#use Scalar::Util 'openhandle';
+
+#our %EXPORT_TAGS = (metrics_methods => [qw(
+  #encode_text decode_text convert_hyphens set_auto_hyphen
+#)]);
+
+#our @EXPORT_OK = (qw(check_tilde check_file incpage_label incpage_roman
+#                    #array_as_string pstr quote_text str),
+#                  ## These are only for PostScript::File::Metrics:
+#                  @( $EXPORT_TAGS{metrics_methods} ) );
+
+# Prototypes for functions only
+method incpage_label ($page) {...};
+method incpage_roman ($page) {...};
+method check_tilde ($a) {...};
+method check_file ($a, $b, $c) {...};
+
+# global constants
+has %!encoding_def; # defined near _set_reencode
+
+has $!t1ascii      = 't1ascii';     # Program to convert .pfb fonts to .pfa on STDOUT:
+has $!ttftotype42  = 'ttftotype42'; # Program to convert .ttf fonts to .pfa on STDOUT:
+
+has $!paper        = 'Letter';
+has $!height       = 500;
+has $!width        = 400;
+has $!bottom       = 30;
+has $!top          = 30;
+has $!left         = 30;
+has $!right        = 30;
+has $!clip_command = 'stroke';
+has $!clipping     = 1;
+has $!eps          = 1;
+has $!dir          = '~/foo';
+has $!file         = "bar";
+has $!landscape    = 0;
+
+has $!headings     = 1;
+has $!reencode     = 'cp1252';
+has $!font_suffix  = '-iso';
+has $!need_fonts   = <Helvetica Helvetica-Bold>;
+
+has $!errors       = 1;
+has $!errmsg       = 'Failed:';
+has $!errfont      = 'Helvetica';
+has $!errsize      = 12;
+has $!errx         = 72;
+has $!erry         = 300;
+
+has $!debug        = 2;
+has $!db_active    = 1;
+has $!db_xgap      = 120;
+has $!db_xtab      = 8;
+has $!db_base      = 300;
+has $!db_ytop      = 500;
+has $!db_color     = '1 0 0 setrgbcolor';
+has $!db_font      = 'Times-Roman';
+has $!db_fontsize  = 11;
+has $!db_bufsize   = 256;
+has %!needed;
+has @!page;
+has $!pagecount    = 0;
+has $!p            = 1;
+has @!pagebbox;
+has @!bbox;
+has @!pageclip;
+has @!pagelandsc;
+has @!Pages;
+has %!pagevars;
+has $!DocSupplied;
+has $!clipcmd;
+has $!build_needed;
+has $!title        = '';
+has $!Comments     = '';
+has $!version;
+has $!order;
+has $!extensions;
+has $!langlevel;
+has $!Preview;
+has $!Defaults;
+has $!Functions;
+has $!Fonts;
+has $!Resources;
+has $!Setup;
+has @!embed_fonts;
+has $!Trailer;
+has $!encoding;
+has $!filename;
+has $!file_ext;
+has $!PageSetup;
+has $!PageTrailer;
+has $!auto_hyphen;
+has $!strip_type;
+has $!strip;
+has $!incpage;
+has @!page_clipping;
+has %!vars;
+has $!embed_fonts;
+has $!storage;
+
+=begin pod
 =head1 SYNOPSIS
 
 =head2 Simplest
@@ -211,7 +285,7 @@ surrounded by digits, or it's preceded by whitespace or punctuation
 and followed by a digit, or it's followed by a currency symbol, it's
 translated to MINUS SIGN.  Otherwise, it's translated to HYPHEN.
 
-=cut
+=end pod
 
 # define page sizes here (a4, letter, etc)
 # should be Properly Cased
@@ -260,7 +334,7 @@ our %size = (
 
 
 # The 13 standard fonts that are available on all PS 1 implementations:
-our @fonts = qw(
+our @fonts = <
     Courier
     Courier-Bold
     Courier-BoldOblique
@@ -274,126 +348,127 @@ our @fonts = qw(
     Times-BoldItalic
     Times-Italic
     Symbol
-);
+>;
 
 # 5.008-compatible version of defined-or:
-sub _def { for (@_) { return $_ if defined $_ } undef }
+#sub _def { for (@_) { return $_ if defined $_ } undef }
 
-sub new {
-    my ($class, @options) = @_;
-    my $opt = {};
-    if (@options == 1) {
-        $opt = $options[0];
-    } else {
-        %$opt = @options;
-    }
+#sub new {
+#    my ($class, @options) = @_;
+#    my $opt = {};
+#    if (@options == 1) {
+#        $opt = $options[0];
+#    } else {
+#        %$opt = @options;
+#    }
+#
+#    ## Initialization
+#    my $o = {
+#        # PostScript DSC sections
+#        Comments    => "",  # must include leading '%%' and end with '\n'
+#        DocSupplied => "",
+#        Preview     => "",
+#        Defaults    => "",
+#        Fonts       => "",
+#        Resources   => "",
+#        Functions   => "",
+#        Setup       => "",
+#        PageSetup   => "",
+#        Pages       => [],  # indexed by $o->{p}, 0 based
+#        PageTrailer => "",
+#        Trailer     => "",
+#
+#        # internal
+#        p           => 0,   # current page (0 based)
+#        pagecount   => 0,   # number of pages
+#        page        => [],  # array of labels, indexed by $o->{p}
+#        pagelandsc  => [],  # orientation of each page individually
+#        pageclip    => [],  # clip to pagebbox
+#        pagebbox    => [],  # array of bbox, indexed by $o->{p}
+#        bbox        => [],  # [ x0, y0, x1, y1 ]
+#        embed_fonts => [],  # fonts that have been embedded
+#        needed      => {},  # DocumentNeededResources
+#
+#        vars        => {},  # permanent user variables
+#        pagevars    => {},  # user variables reset with each new page
+#    };
+#    bless $o, $class;
+#
+#    ## Paper layout
+#    croak "PNG output is no longer supported.  Use PostScript::Convert instead"
+#        if $opt.{png};
+#    $o.{eps}      = !!$opt.{eps} + 0;
+#    $o.{file_ext} = $opt.{file_ext};
+#    $o.set_filename(@$opt{qw(file dir)});
+#    $o.set_paper( $opt.{paper} );
+#    $o.set_width( $opt.{width} );
+#    $o.set_height( $opt.{height} );
+#    $o.set_landscape( $opt.{landscape} );
+#
+#    ## Debug options
+#    $o.{debug} = $opt.{debug};        # undefined is an option
+#    if ($o.{debug}) {
+#        $o.{db_active}   = _def($opt.{db_active},   1);
+#        $o.{db_bufsize}  = _def($opt.{db_bufsize},  256);
+#        $o.{db_font}     = _def($opt.{db_font},     "Courier");
+#        $o.{db_fontsize} = _def($opt.{db_fontsize}, 10);
+#        $o.{db_ytop}     = _def($opt.{db_ytop},     ($o.{bbox}[3] - $o.{db_fontsize} - 6));
+#        $o.{db_ybase}    = _def($opt.{db_ybase},    6);
+#        $o.{db_xpos}     = _def($opt.{db_xpos},     6);
+#        $o.{db_xtab}     = _def($opt.{db_xtab},     10);
+#        $o.{db_xgap}     = _def($opt.{db_xgap},     ($o.{bbox}[2] - $o.{bbox}[0] - $o.{db_xpos})/4);
+#        $o.{db_color}    = _def($opt.{db_color},    "0 setgray");
+#    }
+#
+#    ## Bounding box
+#    my $x0 = $o.{bbox}[0] + _def($opt.{left},  28);
+#    my $y0 = $o.{bbox}[1] + _def($opt.{bottom},  28);
+#    my $x1 = $o.{bbox}[2] - _def($opt.{right},  28);
+#    my $y1 = $o.{bbox}[3] - _def($opt.{top},  28);
+#    $o.set_bounding_box( $x0, $y0, $x1, $y1 );
+#    $o.set_clipping( $opt.{clipping} );
+#
+#    ## Other options
+#    $o.{title}      = $opt.{title};
+#    $o.{version}    = $opt.{version};
+#    $o.{langlevel}  = $opt.{langlevel};
+#    $o.{extensions} = $opt.{extensions};
+#    $o.{order}      = defined($opt.{order}) ? ucfirst lc $opt.{order} : undef;
+#    $o.set_page_label( $opt.{page} );
+#    $o.set_incpage_handler( $opt.{incpage_handler} );
+#
+#    $o.{errx}        = _def($opt.{errx},         72);
+#    $o.{erry}        = _def($opt.{erry},         72);
+#    $o.{errmsg}      = _def($opt.{errmsg},       "ERROR:");
+#    $o.{errfont}     = _def($opt.{errfont},      "Courier-Bold");
+#    $o.{errsize}     = _def($opt.{errsize},      12);
+#
+#    $o.{font_suffix} = _def($opt.{font_suffix},  "-iso");
+#    $o.{clipcmd}     = _def($opt.{clip_command}, "clip");
+#    $o.{errors}      = _def($opt.{errors},       1);
+#    $o.{headings}    = _def($opt.headings},     0);
+#    $o.set_strip( $opt.{strip} );
+#    $o._set_reencode( $opt.{reencode} );
+#    $o.set_auto_hyphen(_def($opt.{auto_hyphen}, 1));
+#    $o.need_resource(font => @{ $opt.{need_fonts} }) if $opt.{need_fonts};
+#
+#    $o.newpage if _def($opt.{newpage}, 1);
+#
+#    ## Finish
+#    return $o;
+#}
 
-    ## Initialization
-    my $o = {
-        # PostScript DSC sections
-        Comments    => "",  # must include leading '%%' and end with '\n'
-        DocSupplied => "",
-        Preview     => "",
-        Defaults    => "",
-        Fonts       => "",
-        Resources   => "",
-        Functions   => "",
-        Setup       => "",
-        PageSetup   => "",
-        Pages       => [],  # indexed by $o->{p}, 0 based
-        PageTrailer => "",
-        Trailer     => "",
-
-        # internal
-        p           => 0,   # current page (0 based)
-        pagecount   => 0,   # number of pages
-        page        => [],  # array of labels, indexed by $o->{p}
-        pagelandsc  => [],  # orientation of each page individually
-        pageclip    => [],  # clip to pagebbox
-        pagebbox    => [],  # array of bbox, indexed by $o->{p}
-        bbox        => [],  # [ x0, y0, x1, y1 ]
-        embed_fonts => [],  # fonts that have been embedded
-        needed      => {},  # DocumentNeededResources
-
-        vars        => {},  # permanent user variables
-        pagevars    => {},  # user variables reset with each new page
-    };
-    bless $o, $class;
-
-    ## Paper layout
-    croak "PNG output is no longer supported.  Use PostScript::Convert instead"
-        if $opt->{png};
-    $o->{eps}      = !!$opt->{eps} + 0;
-    $o->{file_ext} = $opt->{file_ext};
-    $o->set_filename(@$opt{qw(file dir)});
-    $o->set_paper( $opt->{paper} );
-    $o->set_width( $opt->{width} );
-    $o->set_height( $opt->{height} );
-    $o->set_landscape( $opt->{landscape} );
-
-    ## Debug options
-    $o->{debug} = $opt->{debug};        # undefined is an option
-    if ($o->{debug}) {
-        $o->{db_active}   = _def($opt->{db_active},   1);
-        $o->{db_bufsize}  = _def($opt->{db_bufsize},  256);
-        $o->{db_font}     = _def($opt->{db_font},     "Courier");
-        $o->{db_fontsize} = _def($opt->{db_fontsize}, 10);
-        $o->{db_ytop}     = _def($opt->{db_ytop},     ($o->{bbox}[3] - $o->{db_fontsize} - 6));
-        $o->{db_ybase}    = _def($opt->{db_ybase},    6);
-        $o->{db_xpos}     = _def($opt->{db_xpos},     6);
-        $o->{db_xtab}     = _def($opt->{db_xtab},     10);
-        $o->{db_xgap}     = _def($opt->{db_xgap},     ($o->{bbox}[2] - $o->{bbox}[0] - $o->{db_xpos})/4);
-        $o->{db_color}    = _def($opt->{db_color},    "0 setgray");
-    }
-
-    ## Bounding box
-    my $x0 = $o->{bbox}[0] + _def($opt->{left},  28);
-    my $y0 = $o->{bbox}[1] + _def($opt->{bottom},  28);
-    my $x1 = $o->{bbox}[2] - _def($opt->{right},  28);
-    my $y1 = $o->{bbox}[3] - _def($opt->{top},  28);
-    $o->set_bounding_box( $x0, $y0, $x1, $y1 );
-    $o->set_clipping( $opt->{clipping} );
-
-    ## Other options
-    $o->{title}      = $opt->{title};
-    $o->{version}    = $opt->{version};
-    $o->{langlevel}  = $opt->{langlevel};
-    $o->{extensions} = $opt->{extensions};
-    $o->{order}      = defined($opt->{order}) ? ucfirst lc $opt->{order} : undef;
-    $o->set_page_label( $opt->{page} );
-    $o->set_incpage_handler( $opt->{incpage_handler} );
-
-    $o->{errx}        = _def($opt->{errx},         72);
-    $o->{erry}        = _def($opt->{erry},         72);
-    $o->{errmsg}      = _def($opt->{errmsg},       "ERROR:");
-    $o->{errfont}     = _def($opt->{errfont},      "Courier-Bold");
-    $o->{errsize}     = _def($opt->{errsize},      12);
-
-    $o->{font_suffix} = _def($opt->{font_suffix},  "-iso");
-    $o->{clipcmd}     = _def($opt->{clip_command}, "clip");
-    $o->{errors}      = _def($opt->{errors},       1);
-    $o->{headings}    = _def($opt->{headings},     0);
-    $o->set_strip( $opt->{strip} );
-    $o->_set_reencode( $opt->{reencode} );
-    $o->set_auto_hyphen(_def($opt->{auto_hyphen}, 1));
-    $o->need_resource(font => @{ $opt->{need_fonts} }) if $opt->{need_fonts};
-
-    $o->newpage if _def($opt->{newpage}, 1);
-
-    ## Finish
-    return $o;
-}
-
+=begin pod
 =method-construct new
 
-  $ps = PostScript::File->new(options)
+  $ps = PostScript::File.new(options)
 
 Create a new PostScript::File object, either a set of pages or an Encapsulated PostScript (EPS) file. Options are
 hash keys and values.  All values should be in the native PostScript units of 1/72 inch.
 
 Example
 
-    $ps = PostScript::File->new(
+    $ps = PostScript::File.new(
             eps       => 1,
             landscape => 1,
             width     => 216,
@@ -476,7 +551,7 @@ The comments inserted when C<headings> is true are:
   %%CreationDate: Sun Jan  1 00:00:00 2012
   %%DocumentMedia: US-Letter 612 792 80 ( ) ( )
 
-USER comes from C<getlogin() || getpwuid($<)>, and HOSTNAME comes from
+USER comes from C<getlogin() || getpwuid($)>, and HOSTNAME comes from
 L<Sys::Hostname>.  The DocumentMedia values come from the
 L<paper size attributes|/"Paper Size and Margins">.  The
 DocumentMedia comment is omitted from EPS files.
@@ -676,55 +751,54 @@ X position of the error message on the page.  (Default: (72))
 
 Y position of the error message on the page.  (Default: (72))
 
-=cut
+=end pod
 
-sub newpage {
-    my ($o, $page) = @_;
-    my $oldpage = $o->{page}[$o->{p}];
+method newpage {
+    my $page = shift;
+    my $oldpage = @!page[$!p];
     # Don't use _def here, because we don't want to call
     # incpage_handler if the user supplied a page label:
     my $newpage = defined $page
-        ? $page
+        ?? $page
         # If this is the very first page, don't increment the page number:
-        : ($o->{pagecount}
-           ? $o->{incpage}->($oldpage)
-           : $oldpage);
-    my $p = $o->{p} = $o->{pagecount}++;
-    $o->{page}[$p] = $newpage;
-    $o->{pagebbox}[$p] = [ @{$o->{bbox}} ];
-    $o->{pageclip}[$p] = $o->{clipping};
-    $o->{pagelandsc}[$p] = $o->{landscape};
-    $o->{Pages}->[$p] = "";
-    $o->{pagevars} = {};
+        !! ($!pagecount
+           ?? $!incpage($oldpage)
+           !! $oldpage);
+    my $p = $!p = $!pagecount++;
+    @!page[$p] = $newpage;
+    @!pagebbox[$p] = @!bbox;
+    @!pageclip[$p] = $!clipping;
+    @!pagelandsc[$p] = $!landscape;
+    @!Pages[$p] = "";
+    %!pagevars = ();
 }
 
+=begin pod
 =method-main newpage
 
-  $ps->newpage( [$page] )
+  $ps.newpage( [$page] )
 
 Generate a new PostScript page, unless in a EPS file when it is ignored.
 
 If C<$page> is not specified the previous page's label is incremented
 using the L</incpage_handler>.
 
-=cut
+=end pod
 
-sub _pre_pages
-{
-    my ($o, $landscape, $clipping, $filename) = @_;
+method _pre_pages($landscape, $clipping, $filename) {
 
-    if (my $use_functions = $o->{use_functions}) {
-      $use_functions->add_to_file($o);
+    if (my $use_functions = self.use_functions) {
+      $use_functions.add_to_file(self);
     }
 
-    my $docSupplied = $o->{DocSupplied};
+    my $docSupplied = $!DocSupplied;
     ## Thanks to Johan Vromans for the ISOLatin1Encoding.
     my $fonts = "";
-    if ($o->{reencode}) {
-        my $encoding = $o->{reencode};
-        my $ext = $o->{font_suffix};
+    if ($!reencode) {
+        my $encoding = $!reencode;
+        my $ext = $!font_suffix;
         $fonts = "% Handle font encoding:\n";
-        $fonts .= $o->_here_doc(<<"END_FONTS");
+        $fonts ~= q:to<END_FONTS>;
             /STARTDIFFENC { mark } bind def
             /ENDDIFFENC {
 
@@ -781,56 +855,58 @@ sub _pre_pages
                 definefont pop
             } bind def
 END_FONTS
-        $fonts .= "\n% Reencode the fonts:\n";
+        $fonts ~= "\n% Reencode the fonts:\n";
         # If no fonts listed, assume the standard ones:
-        $o->{needed}{font} ||= { map { $_ => 1 } @fonts };
+        %!needed<font> ||= do for @fonts map { $_ => 1 };
 
-        for my $font (sort(keys(%{ $o->{needed}{font} }),
-                           @{ $o->{embed_fonts} })) {
+        for (self.needed<font>.keys,
+                           self.embed_fonts.keys).flat.sort -> $font {
             next if $font eq 'Symbol'; # doesn't use StandardEncoding
-            $fonts .= "/${font}$ext $encoding /$font REENCODEFONT\n";
+            $fonts ~= "/{$font}$ext $encoding /$font REENCODEFONT\n";
         }
-        $fonts .= "% end font encoding\n";
+        $fonts ~= "% end font encoding\n";
     } # end if reencode
 
     # Prepare the PostScript file
-    my $postscript = $o->{eps} ? "\%!PS-Adobe-3.0 EPSF-3.0\n" : "\%!PS-Adobe-3.0\n";
-    if ($o->{eps}) {
-        $postscript .= $o->_bbox_comment('', $o->{bbox});
+    my $postscript = $!eps ?? "\%!PS-Adobe-3.0 EPSF-3.0\n" !! "\%!PS-Adobe-3.0\n";
+    if $!eps {
+        $postscript ~= self._bbox_comment('', @!bbox);
     }
-    if ($o->{headings}) {
+    if ($!headings) {
         require Sys::Hostname;
-        my $user = getlogin() || (getpwuid($<))[0] || "Unknown";
+#        my $user = getlogin() || (getpwuid($<))[0] || "Unknown";
+        my $user = 'Unknown';
         my $hostname = Sys::Hostname::hostname();
-        $postscript .= $o->_here_doc(<<END_TITLES);
+        $postscript ~= q:to<END_TITLES>;
         \%\%For: $user\@$hostname
         \%\%Creator: Perl module ${\( ref $o )} v$PostScript::File::VERSION
         \%\%CreationDate: ${\( scalar localtime )}
 END_TITLES
-        $postscript .= $o->_here_doc(<<END_PS_ONLY) if (not $o->{eps});
-        \%\%DocumentMedia: $o->{paper} $o->{width} $o->{height} 80 ( ) ( )
+        $postscript ~= qq:to<END_PS_ONLY> if not $!eps;
+        \%\%DocumentMedia: $!paper $!width $!height 80 ( ) ( )
 END_PS_ONLY
     }
 
     my $landscapefn = "";
-    $landscapefn .= $o->_here_doc(<<END_LANDSCAPE) if ($landscape);
-                % Rotate page 90 degrees
-                % _ => _
-                /landscape {
-                    $o->{width} 0 translate
+
+    if $!landscape {
+        $landscapefn = qq:to<END_LANDSCAPE> if $!landscape;
+                \% Rotate page 90 degrees
+                /landscape \{
+                    $!width 0 translate
                     90 rotate
-                } bind def
+                \} bind def
 END_LANDSCAPE
+    }
 
     my $clipfn = "";
-    if ($clipping) {
-      my $clipcmd = $o->{clipcmd};
+    if ($!clipping) {
+      my $clipcmd = $!clipcmd;
       $clipcmd = "gsave 0 setgray 0.5 setlinewidth $clipcmd grestore newpath"
           if $clipcmd eq 'stroke';
 
-      $clipfn .= $o->_here_doc(<<END_CLIPPING);
+      $clipfn ~= q:to<END_CLIPPING>;
                 % Draw box as clipping path
-                % x0 y0 x1 y1 => _
                 /cliptobox {
                     4 dict begin
                     /y1 exch def /x1 exch def /y0 exch def /x0 exch def
@@ -844,16 +920,15 @@ END_CLIPPING
     } # end if $clipping
 
     my $errorfn = "";
-    if ($o->{errors}) {
-      $o->need_resource(font => $o->{errfont});
-      $errorfn .= $o->_here_doc(<<END_ERRORS);
-        /errx $o->{errx} def
-        /erry $o->{erry} def
-        /errmsg ($o->{errmsg}) def
-        /errfont /$o->{errfont} def
-        /errsize $o->{errsize} def
+    if ($!errors) {
+      self.need_resource('font', $!errfont);
+      $errorfn ~= q:to<END_ERRORS>;
+        /errx self.{errx} def
+        /erry self.{erry} def
+        /errmsg (self.{errmsg}) def
+        /errfont /self.{errfont} def
+        /errsize self.{errsize} def
         % Report fatal error on page
-        % _ str => _
         /report_error {
             0 setgray
             errfont findfont errsize scalefont setfont
@@ -878,12 +953,12 @@ END_CLIPPING
             } def
         end
 END_ERRORS
-    } # end if $o->{errors}
+    } # end if $!errors
 
     my $debugfn = "";
-    if ($o->{debug}) {
-      $o->need_resource(font => $o->{db_font});
-      $debugfn .= $o->_here_doc(<<END_DEBUG_ON);
+    if ($!debug) {
+      self.need_resource('font', $!db_font);
+      $debugfn ~= q:to<END_DEBUG_ON>;
         /debugdict 25 dict def
         debugdict begin
 
@@ -893,7 +968,6 @@ END_ERRORS
                 /db_xpos db_xpos db_xgap add def
             end
         } bind def
-        % _ db_newcol => _
 
         /db_down {
             debugdict begin
@@ -904,38 +978,35 @@ END_ERRORS
                 } ifelse
             end
         } bind def
-        % _ db_down => _
 
         /db_indent {
             debug_dict begin
                 /db_xpos db_xpos db_xtab add def
             end
         } bind def
-        % _ db_indent => _
 
         /db_unindent {
             debugdict begin
                 /db_xpos db_xpos db_xtab sub def
             end
         } bind def
-        % _ db_unindent => _
 
         /db_show {
             debugdict begin
                 db_active 0 ne {
                     gsave
                     newpath
-                    $o->{db_color}
-                    /$o->{db_font} findfont $o->{db_fontsize} scalefont setfont
+                    self.{db_color}
+                    /self.{db_font} findfont self.{db_fontsize} scalefont setfont
                     db_xpos db_ypos moveto
                     dup type
                     dup (arraytype) eq {
                         pop db_array
                     }{
                         dup (marktype) eq {
-                            pop pop (--mark--) $o->{db_bufsize} string cvs show
+                            pop pop (--mark--) self.{db_bufsize} string cvs show
                         }{
-                            pop $o->{db_bufsize} string cvs show
+                            pop $o.{db_bufsize} string cvs show
                         } ifelse
                         db_down
                     } ifelse
@@ -944,7 +1015,6 @@ END_ERRORS
                 }{ pop } ifelse
             end
         } bind def
-        % _ (msg) db_show => _
 
         /db_nshow {
             debugdict begin
@@ -961,12 +1031,11 @@ END_ERRORS
                 } ifelse
             end
         } bind def
-        % _ n (str) db_nshow => _
 
         /db_stack {
             count 0 gt {
                 count
-                $o->{debug} 2 ge {
+                $o.{debug} 2 ge {
                     1 sub
                 } if
                 (The stack holds...) db_nshow
@@ -974,7 +1043,6 @@ END_ERRORS
                 (Empty stack) db_show
             } ifelse
         } bind def
-        % _ db_stack => _
 
         /db_one {
             debugdict begin
@@ -984,13 +1052,12 @@ END_ERRORS
                 /db_bpos exch db_bpos add def
             end
         } bind def
-        % _ any db_one => _
 
         /db_print {
             debugdict begin
-                /db_temp $o->{db_bufsize} string def
-                /db_buf $o->{db_bufsize} string def
-                0 1 $o->{db_bufsize} sub 1 { db_buf exch 32 put } for
+                /db_temp self.{db_bufsize} string def
+                /db_buf self.{db_bufsize} string def
+                0 1 self.{db_bufsize} sub 1 { db_buf exch 32 put } for
                 /db_bpos 0 def
                 {
                     db_one
@@ -999,18 +1066,15 @@ END_ERRORS
                 db_buf db_show
             end
         } bind def
-        % _ [array] db_print => _
 
         /db_array {
             mark ([) 2 index aload pop (]) ] db_print pop
         } bind def
-        % _ [array] db_array => _
 
         /db_point {
             [ 1 index (\\() 5 index (,) 6 index (\\)) ] db_print
             pop
         } bind def
-        % _ x y (str) db_point => _ x y
 
         /db_where {
             where {
@@ -1019,35 +1083,33 @@ END_ERRORS
                 (not found) db_show
             } ifelse
         } bind def
-        % _ var db_where => _
+
 
         /db_on {
             debugdict begin
             /db_active 1 def
             end
         } bind def
-        % _ db_on => _
 
         /db_off {
             debugdict begin
             /db_active 0 def
             end
         } bind def
-        % _ db_on => _
 
-        /db_active $o->{db_active} def
-        /db_ytop  $o->{db_ytop} def
-        /db_ybase $o->{db_ybase} def
-        /db_xpos  $o->{db_xpos} def
-        /db_xtab  $o->{db_xtab} def
-        /db_xgap  $o->{db_xgap} def
-        /db_ygap  $o->{db_fontsize} def
-        /db_ypos  $o->{db_ytop} def
+        /db_active self.{db_active} def
+        /db_ytop  self.{db_ytop} def
+        /db_ybase self.{db_ybase} def
+        /db_xpos  self.{db_xpos} def
+        /db_xtab  self.{db_xtab} def
+        /db_xgap  self.{db_xgap} def
+        /db_ygap  self.{db_fontsize} def
+        /db_ypos  self.{db_ytop} def
         end
 END_DEBUG_ON
-    } # end if $o->{debug}
+    } # end if $!debug
 
-    $debugfn .= $o->_here_doc(<<END_DEBUG_OFF) if (defined($o->{debug}) and not $o->{debug});
+    $debugfn ~= q:to<END_DEBUG_OFF> if ($!debug.defined and not $!debug);
         % Define out the db_ functions
         /debugdict 25 dict def
         debugdict begin
@@ -1064,11 +1126,11 @@ END_DEBUG_ON
         end
 END_DEBUG_OFF
 
-    my $ver = sprintf('%g', $VERSION);
+    my $ver = sprintf('%g', $!VERSION);
     my $supplied = "";
     if ($landscapefn or $clipfn or $errorfn or $debugfn) {
-        $docSupplied .= "\%\%+ procset PostScript_File $ver 0\n";
-        $supplied .= $o->_here_doc(<<END_DOC_SUPPLIED);
+        $docSupplied ~= "\%\%+ procset PostScript_File $ver 0\n";
+        $supplied ~= q:to<END_DOC_SUPPLIED>;
             \%\%BeginResource: procset PostScript_File $ver 0
             $landscapefn
             $clipfn
@@ -1078,117 +1140,111 @@ END_DEBUG_OFF
 END_DOC_SUPPLIED
     }
 
-    my $docNeeded = $o->_build_needed;
+    my $docNeeded = $!build_needed;
 
-    my $title = $o->{title};
-    $title = $o->quote_text($filename)
-        if not defined $title and defined $filename;
+    my $title = $!title;
+    $title = self.quote_text($filename)
+        if !$title.defined and $filename.defined;
 
-    $postscript .= $o->{Comments} if ($o->{Comments});
-    $postscript .= "\%\%Orientation: ${\( $o->{landscape} ? 'Landscape' : 'Portrait' )}\n";
-    $postscript .= $docNeeded if $docNeeded;
-    $postscript .= "\%\%DocumentSuppliedResources:\n$docSupplied" if $docSupplied;
-    $postscript .= $o->encode_text("\%\%Title: $title\n") if defined $title;
-    $postscript .= "\%\%Version: $o->{version}\n" if ($o->{version});
-    $postscript .= "\%\%Pages: $o->{pagecount}\n" if ((not $o->{eps}) and ($o->{pagecount} > 1));
-    $postscript .= "\%\%PageOrder: $o->{order}\n" if ((not $o->{eps}) and ($o->{order}));
-    $postscript .= "\%\%Extensions: $o->{extensions}\n" if ($o->{extensions});
-    $postscript .= "\%\%LanguageLevel: $o->{langlevel}\n" if ($o->{langlevel});
-    $postscript .= "\%\%EndComments\n";
+    $postscript ~= $!Comments if $!Comments;
+    $postscript ~= "\%\%Orientation: {( $!landscape ?? 'Landscape' !! 'Portrait' )}\n";
+    $postscript ~= $docNeeded if $docNeeded;
+    $postscript ~= "\%\%DocumentSuppliedResources:\n$docSupplied" if $docSupplied;
+    $postscript ~= self.encode_text("\%\%Title: $title\n") if $title.defined;
+    $postscript ~= "\%\%Version: $!version\n" if $!version;
+    $postscript ~= "\%\%Pages: $!pagecount\n" if $!pagecount > 1 && not $!eps;
+    $postscript ~= "\%\%PageOrder: $!order\n" if !$!eps and $!order;
+    $postscript ~= "\%\%Extensions: $!extensions\n" if $!extensions;
+    $postscript ~= "\%\%LanguageLevel: $!langlevel\n" if $!langlevel;
+    $postscript ~= "\%\%EndComments\n";
 
-    $postscript .= $o->{Preview} if ($o->{Preview});
+    $postscript ~= $!Preview if $!Preview;
 
-    $postscript .= $o->_here_doc(<<END_DEFAULTS) if ($o->{Defaults});
+    $postscript ~= qq:to<END_DEFAULTS> if $!Defaults;
         \%\%BeginDefaults
-        $o->{Defaults}
+        $!Defaults
         \%\%EndDefaults
 END_DEFAULTS
 
-    $postscript .= $o->_here_doc(<<END_PROLOG);
+    $postscript ~= qq:to<END_PROLOG>;
         \%\%BeginProlog
         $supplied
-        $o->{Functions}
+        $!Functions
         \%\%EndProlog
 END_PROLOG
 
-    my $setup = "$o->{Fonts}$fonts$o->{Resources}$o->{Setup}";
-    $postscript .= "%%BeginSetup\n$setup%%EndSetup\n" if $setup;
+    my $setup = "$!Fonts$fonts{$!Resources}$!Setup";
+    $postscript ~= "\%\%BeginSetup\n$setup\%\%EndSetup\n" if $setup;
 
     return $postscript;
 }
 # Internal method, used by output()
 
-sub _build_needed
-{
-  my $o = shift;
+method _build_needed() {
 
-  my $needed = $o->{needed};
+  return unless %!needed;
 
-  return unless %$needed;
+  my $comment = "\%\%DocumentNeededResources:\n";
 
-  my $comment = "%%DocumentNeededResources:\n";
-
-  foreach my $type (sort keys %$needed) {
+  for %!needed.keys.sort -> $type {
     if ($type eq 'font') {
       # Remove any embedded fonts from the needed fonts:
-      delete $needed->{$type}{$_} for @{ $o->{embed_fonts} };
+      %!needed{$type}{$_}:delete for @!embed_fonts;
     } # end if fonts
 
-    next unless %{ $needed->{$type} };
+    next unless %!needed{$type};
 
-    my $prefix = "%%+ $type";
-    my $maxLen = 79 - length $prefix;
+    my $prefix = "\%\%+ $type";
+    my $maxLen = 79 - $prefix.chars;
     my @list   = '';
 
-    foreach my $resource (sort keys %{ $needed->{$type} }) {
+    for %!needed{$type}.keys.sort -> $resource {
       push @list, ''
-          if length $list[-1]
-             and length($resource) + length($list[-1]) >= $maxLen;
-      $list[-1] .= " $resource";
+          if @list[*-1].chars
+             and $resource.chars + @list[*-1].chars >= $maxLen;
+      @list[*-1] ~= " $resource";
     } # end foreach $resource
 
-    $comment .= "$prefix$_\n" for @list;
+    $comment ~= "$prefix$_\n" for @list;
   } # end foreach $type
 
   $comment;
 } # end _build_needed
 
-sub _post_pages
-{
-    my $o = shift;
+method _post_pages {
     my $postscript = "";
 
-    my $trailer = $o->{Trailer};
-    $trailer .= "% Local\ Variables:\n% coding: " .
-                $o->{encoding}->mime_name . "\n% End:\n"
-        if $o->{encoding};
+    my $trailer = $!Trailer;
+    $trailer ~= "\% Local\ Variables:\n\% coding: " ~
+                $!encoding.mime_name ~ "\n\% End:\n"
+        if $!encoding;
 
-    $postscript .= "%%Trailer\n$trailer" if $trailer;
-    $postscript .= "\%\%EOF\n";
+    $postscript ~= "\%\%Trailer\n$trailer" if $trailer;
+    $postscript ~= "\%\%EOF\n";
 
     return $postscript;
 }
 # Internal method, used by output()
 
-sub output {
-    my ($o, $filename, $dir) = @_;
+method output($filename, $dir) {
+###TODO
     my $fh = openhandle $filename;
     # Don't permanently change filename:
-    local $o->{filename} = $o->{filename};
-    $o->set_filename($filename, $dir) if @_ > 1 and not $fh;
+#TODO    temp self.{filename} = self.{filename};
+    self.set_filename($filename, $dir) if $dir.defined and not $fh;
 
     my ($debugbegin, $debugend) = ("", "");
-    if (defined $o->{debug}) {
+    if $!debug.defined {
         $debugbegin = "debugdict begin\nuserdict begin";
         $debugend   = "end\nend";
-        if ($o->{debug} >= 2) {
-            $debugbegin = $o->_here_doc(<<END_DEBUG_BEGIN);
+        if $!debug >= 2 {
+            $debugbegin = q:to<END_DEBUG_BEGIN>;
                 debugdict begin
                     userdict begin
                         mark
                         (Start of page) db_show
 END_DEBUG_BEGIN
-            $debugend = $o->_here_doc(<<END_DEBUG_END);
+            $debugend = q:to<END_DEBUG_END>;
                         (End of page) db_show
                         db_stack
                         cleartomark
@@ -1201,87 +1257,89 @@ END_DEBUG_END
         $debugend   = "end";
     }
 
-    if ($o->{eps}) {
+    if $!eps {
         my @pages;
         my $p = 0;
-        do {
+        while $p < $!pagecount {
             my $epsfile;
-            if (defined $o->{filename}) {
-                $epsfile = ($o->{pagecount} > 1) ? "$o->{filename}-$o->{page}[$p]"
-                                           : "$o->{filename}";
-                $epsfile .= defined($o->{file_ext}) ? $o->{file_ext}
-                            : ($o->{Preview} ? ".epsi" : ".epsf");
+            if $!filename.defined {
+                $epsfile = ($!pagecount > 1) ?? "$!filename-@!page[$p]"
+                                           !! "$!filename";
+                $epsfile ~= $!file_ext.defined ?? $!file_ext
+                            !! $!Preview ?? ".epsi" !! ".epsf";
             }
             my $postscript = "";
-            my $page = $o->{page}->[$p];
-            my @pbox = $o->get_page_bounding_box($page);
-            $o->set_bounding_box(@pbox);
-            $postscript .= $o->_pre_pages($o->{pagelandsc}[$p], $o->{pageclip}[$p], $epsfile);
-            $postscript .= "landscape\n" if ($o->{pagelandsc}[$p]);
-            $postscript .= "$pbox[0] $pbox[1] $pbox[2] $pbox[3] cliptobox\n" if ($o->{pageclip}[$p]);
-            $postscript .= "$debugbegin\n";
-            $postscript .= $o->{Pages}->[$p];
-            $postscript .= "$debugend\n";
-            $postscript .= $o->_post_pages();
+            my $page = @!page[$p];
+            my @pbox = .get_page_bounding_box($page);
+            .set_bounding_box(@pbox);
+            $postscript ~= self._pre_pages(@!pagelandsc[$p], @!pageclip[$p], $epsfile);
+            $postscript ~= "landscape\n" if @!pagelandsc[$p];
+            $postscript ~= "@pbox[0] @pbox[1] @pbox[2] @pbox[3] cliptobox\n" if @!pageclip[$p];
+            $postscript ~= "$debugbegin\n";
+            $postscript ~= @!Pages[$p];
+            $postscript ~= "$debugend\n";
+            $postscript ~= self._post_pages();
 
-            push @pages, $o->_print_file( $fh || $epsfile, $postscript );
+            push @pages, self._print_file( $fh || $epsfile, $postscript );
 
             $p++;
-        } while ($p < $o->{pagecount});
-        return wantarray ? @pages : $pages[0];
+        }
+#        return wantarray ?? @pages !! $pages[0]; # TODO
+        return @pages;
     } else {
-        my $landscape = $o->{landscape};
-        foreach my $pl (@{$o->{pagelandsc}}) {
+        my $landscape = $!landscape;
+        for @!pagelandsc -> $pl {
             $landscape |= $pl;
         }
-        my $clipping = $o->{clipping};
-        foreach my $cl (@{$o->{pageclip}}) {
+        my $clipping = $!clipping;
+        for @!pageclip -> $cl {
             $clipping |= $cl;
         }
-        my $psfile = $o->{filename};
-        $psfile .= defined($o->{file_ext}) ? $o->{file_ext} : '.ps'
-            if defined $psfile;
-        my $postscript = $o->_pre_pages($landscape, $clipping, $psfile);
-        for (my $p = 0; $p < $o->{pagecount}; $p++) {
-            my $page = $o->{page}->[$p];
-            my @pbox = $o->get_page_bounding_box($page);
+        my $psfile = $!filename;
+        $psfile ~= $!file_ext.defined ?? $!file_ext !! '.ps'
+            if $psfile.defined;
+        my $postscript = self._pre_pages($landscape, $clipping, $psfile);
+        for ^$!pagecount -> $p {
+            my $page = @!page[$p];
+            my @pbox = self.get_page_bounding_box($page);
             my ($landscape, $pagebb);
-            if ($o->{pagelandsc}[$p]) {
+            if (@!pagelandsc[$p]) {
                 $landscape = "landscape";
-                $pagebb = $o->_bbox_comment(Page => [ @pbox[1,0,3,2] ]);
+                $pagebb = self._bbox_comment(Page => [ @pbox[1,0,3,2] ]);
             } else {
                 $landscape = "";
-                $pagebb = $o->_bbox_comment(Page => \@pbox);
+                $pagebb = self._bbox_comment(Page => \@pbox);
             }
-            my $cliptobox = $o->{pageclip}[$p] ? "$pbox[0] $pbox[1] $pbox[2] $pbox[3] cliptobox" : "";
-            $postscript .= $o->_here_doc(<<END_PAGE_SETUP);
-                \%\%Page: $o->{page}->[$p] ${\($p+1)}
+            my $cliptobox = @!pageclip[$p] ?? "@pbox[0] @pbox[1] @pbox[2] @pbox[3] cliptobox" !! "";
+            $postscript ~= qq:to<END_PAGE_SETUP>;
+                \%\%Page: self.page[$p] {$p+1}
                 $pagebb\%\%BeginPageSetup
                     /pagelevel save def
                     $landscape
                     $cliptobox
                     $debugbegin
-                    $o->{PageSetup}
+                    $!PageSetup
                 \%\%EndPageSetup
 END_PAGE_SETUP
-            $postscript .= $o->{Pages}->[$p];
-            $postscript =~ s/\n?\z/\n/; # Ensure LF at end
-            $postscript .= $o->_here_doc(<<END_PAGE_TRAILER);
+            $postscript ~= @!Pages[$p];
+            $postscript ~~ s/\n?$/\n/; # Ensure LF at end
+            $postscript ~= qq:to<END_PAGE_TRAILER>;
                 \%\%PageTrailer
-                    $o->{PageTrailer}
+                    $!PageTrailer
                     $debugend
                     pagelevel restore
                     showpage
 END_PAGE_TRAILER
         }
-        $postscript .= $o->_post_pages();
-        return $o->_print_file( $fh || $psfile, $postscript );
+        $postscript ~= self._post_pages();
+        return self._print_file( $fh || $psfile, $postscript );
     }
 }
 
+=begin pod
 =method-main output
 
-  $ps->output( [$file, [$dir]] )
+  $ps.output( [$file, [$dir]] )
 
 If C<$file> is an open filehandle, write the PostScript document to
 that filehandle and return nothing.
@@ -1306,14 +1364,14 @@ can still be extended or output again.
 
 =method-main as_string
 
-  $postscript_code = $ps->as_string
+  $postscript_code = $ps.as_string
 
 This returns the PostScript document as a string.  It is equivalent to
-C<< $ps->output(undef) >>.
+C<< $ps.output(undef) >>.
 
 =method-main testable_output
 
-  $postscript_code = $ps->testable_output( [$verbatim] )
+  $postscript_code = $ps.testable_output( [$verbatim] )
 
 This returns the PostScript document as a string, but with the
 PostScript::File generated code removed (unless C<$verbatim> is true).
@@ -1322,25 +1380,24 @@ the output caused by different versions of PostScript::File.  The
 PostScript code returned by this method will probably not work in a
 PostScript interpreter.
 
-If C<$verbatim> is true, this is equivalent to C<< $ps->output(undef) >>.
+If C<$verbatim> is true, this is equivalent to C<< $ps.output(undef) >>.
 
-=cut
+=end pod
 
-sub as_string { shift->output(undef) }
+method as_string { self.output('') }
 
-sub testable_output
-{
-  my ($o, $verbatim) = @_;
-
-  my $ps = $o->output(undef);
+# TODO
+method testable_output($verbatim) {
+  my $ps = self.output('');
 
   unless ($verbatim) {
     # Remove PostScript::File generated code:
-    $ps =~ s/^%%BeginResource: procset PostScript_File.*?^%%EndResource\n//msg;
-    $ps =~ s/^%%\+ procset PostScript_File.*\n//mg;
-    $ps =~ s/^% Handle font encoding:\n.*?^% end font encoding\n//ms;
-    $ps =~ s/^% Local Variables:\n.*?^% End:\n//ms;
-    $ps =~ s/^%%Trailer\n(?=%%EOF\n)//m;
+# TODO -- check original flags on these substitutions
+    $ps ~~ s:g/^\%\%BeginResource: procset PostScript_File.*?^\%\%EndResource\n//;
+    $ps ~~ s:g/^\%\%\+ procset PostScript_File.*\n//;
+    $ps ~~ s/^\% Handle font encoding:\n.*?^\% end font encoding\n//;
+    $ps ~~ s/^\% Local Variables:\n.*?^\% End:\n//;
+#TODO    $ps ~~ s/^\%\%Trailer\n(?=\%\%EOF\n)//;
   } # end unless $verbatim
 
   $ps;
@@ -1350,100 +1407,95 @@ sub testable_output
 # Create a BoundingBox: comment,
 # and a HiRes version if the box has a fractional part:
 
-sub _bbox_comment
-{
-  my ($o, $type, $bbox) = @_;
+method _bbox_comment($type, @bbox) {
+  my $comment = join(' ', @bbox);
 
-  my $comment = join(' ', @$bbox);
-
-  if ($comment =~ /\./) {
-    $comment = sprintf("%d %d %d %d\n%%%%%sHiResBoundingBox: %s",
-                       (map { $_ + 0.999999 } @$bbox),
+  if ($comment ~~ /\./) {
+    $comment = sprintf('%d %d %d %d\n%%%%%sHiResBoundingBox: %s',
+                       @bbox.map({ $_ + 0.999999 }),
                        $type, $comment);
   } # end if fractional bbox
 
-  "%%${type}BoundingBox: $comment\n";
+  "\%\%{$type}BoundingBox: $comment\n";
 } # end _bbox_comment
 
-sub _print_file
+method _print_file
 {
-  my $o        = shift;
   my $filename = shift;
 
-  if (defined $filename) {
-    my $outfile = openhandle $filename;
-    if ($outfile) {
-      print $outfile $_[0];
-      return;
-    } # end if passed a filehandle
-
-    open($outfile, ">", $filename)
-        or die "Unable to write to \'$filename\' : $!\nStopped";
-
-    print $outfile $_[0];
-
-    close $outfile;
-
-    return $filename;
-  } else {
-    return $_[0];
-  } # end else no filename
+# TODO
+#  if (defined $filename) {
+#    my $outfile = openhandle $filename;
+#    if ($outfile) {
+#      print $outfile $_[0];
+#      return;
+#    } # end if passed a filehandle
+#
+#    open($outfile, ">", $filename)
+#        or die "Unable to write to \'$filename\' : $!\nStopped";
+#
+#    print $outfile $_[0];
+#
+#    close $outfile;
+#
+#    return $filename;
+#  } else {
+#    return $_[0];
+#  } # end else no filename
 } # end _print_file
 # Internal method, used by output()
 # Expects file name and contents
 #---------------------------------------------------------------------
 
+=begin pod
 =attr auto_hyphen
 
-  $ps = PostScript::File->new( auto_hyphen => $translate )
+  $ps = PostScript::File.new( auto_hyphen => $translate )
 
-  $translate = $ps->get_auto_hyphen
+  $translate = $ps.auto_hyphen
 
-  $ps->set_auto_hyphen( $translate )
+  $ps.auto_hyphen( $translate )
 
 If C<$translate> is a true value, then L</pstr> will do automatic
 hyphen-minus translation when called as an object method (but only if
 the document uses character set translation).  (Default: true)
 See L</"Hyphens and Minus Signs">.
 
-=cut
+=end pod
 
-sub get_auto_hyphen {
-    my $o = shift;
-    return $o->{auto_hyphen};
+multi method auto_hyphen() {
+    return $!auto_hyphen;
 }
 
-sub set_auto_hyphen {
-    my ($o, $translate) = @_;
-    $o->{auto_hyphen} = $o->{encoding} && $translate;
+multi method auto_hyphen($translate) {
+    $!auto_hyphen = $!encoding && $translate;
 }
 
-sub get_filename {
-    my $o = shift;
-    return $o->{filename};
+multi method filename() {
+    return $!filename;
 }
 
-sub set_filename {
-    my ($o, $filename, $dir) = @_;
-    $o->{filename} = ((defined($filename) and length($filename))
-                      ? check_file($filename, $dir)
-                      : undef);
+multi method filename($filename, $dir) {
+    $!filename = $filename.defined and $filename.bytes
+                      ?? check_file($filename, $dir)
+                      !! Str;
 }
 
+=begin pod
 =attr filename
 
-  $ps = PostScript::File->new( file => $file, [dir => $dir] )
+  $ps = PostScript::File.new( file => $file, [dir => $dir] )
 
-  $filename = $ps->get_filename
+  $filename = $ps.filename
 
-  $ps->set_filename( $file, [$dir] )
+  $ps.filename( $file, [$dir] )
 
 =over 4
 
 =item C<$file>
 
 An optional fully qualified path-and-file, a simple file name, the
-empty string (which stands for the special file C<< File::Spec->devnull >>),
+empty string (which stands for the special file C<< File::Spec.devnull >>),
 or C<undef> (which indicates the document has no associated filename).
 
 =item C<$dir>
@@ -1465,15 +1517,15 @@ appended to the file name.
 
 Example:
 
-    $ps = PostScript::File->new( eps => 1 );
-    $ps->set_filename( "pics", "~/book" );
-    $ps->newpage("vi");
+    $ps = PostScript::File.new( eps => 1 );
+    $ps.filename( "pics", "~/book" );
+    $ps.newpage("vi");
         ... draw page
-    $ps->newpage("7");
+    $ps.newpage("7");
         ... draw page
-    $ps->newpage();
+    $ps.newpage();
         ... draw page
-    $ps->output();
+    $ps.output();
 
 The three pages for user 'chris' on a Unix system would be:
 
@@ -1481,15 +1533,15 @@ The three pages for user 'chris' on a Unix system would be:
     /home/chris/book/pics-7.epsf
     /home/chris/book/pics-8.epsf
 
-It would be wise to use C<set_page_bounding_box> explicitly for each page if using multiple pages in EPS files.
+It would be wise to use C<page_bounding_box> explicitly for each page if using multiple pages in EPS files.
 
 =attr file_ext
 
-  $ps = PostScript::File->new( file_ext => $file_ext )
+  $ps = PostScript::File.new( file_ext => $file_ext )
 
-  $file_ext = $ps->get_file_ext
+  $file_ext = $ps.file_ext
 
-  $ps->set_file_ext( $file_ext )
+  $ps.file_ext( $file_ext )
 
 If C<$file_ext> is undef (the default), then the extension is set
 automatically based on the output type.  C<.ps> will be added for
@@ -1503,33 +1555,33 @@ actual type of the output file, only its name.)
 
 =attr eps
 
-  $ps = PostScript::File->new( eps => $eps )
+  $ps = PostScript::File.new( eps => $eps )
 
-  $eps = $ps->get_eps
+  $eps = $ps.eps
 
 C<$eps> is true if this is an Encapsulated PostScript document.
 False indicates an ordinary PostScript document.
 
-=cut
+=end pod
 
-sub get_file_ext {
-    shift->{file_ext};
+multi method file_ext() {
+    $!file_ext;
 }
 
-sub set_file_ext {
-    my ($o, $ext) = @_;
-    $o->{file_ext} = $ext;
+multi method file_ext($ext) {
+    $!file_ext = $ext;
 }
 
-sub get_eps { my $o = shift; return $o->{eps}; }
+method eps { return $!eps; }
 
+=begin pod
 =attr-paper paper
 
-  $ps = PostScript::File->new( paper => $paper_size )
+  $ps = PostScript::File.new( paper => $paper_size )
 
-  $paper_size = $ps->get_paper
+  $paper_size = $ps.paper
 
-  $ps->set_paper( $paper_size )
+  $ps.paper( $paper_size )
 
 Set the paper size of each page.  A document can be created using a
 standard paper size without having to remember the size of paper using
@@ -1546,49 +1598,47 @@ HEIGHT are numbers (in points).  This sets the paper size to "Custom".
 Setting this also sets L</bounding_box>, L</height>, and L</width>
 to the full height and width of the paper.
 
-=cut
+=end pod
 
-sub get_paper {
-    my $o = shift;
-    return $o->{paper};
+multi method paper() {
+    return $!paper;
 }
 
-sub set_paper {
-    my $o = shift;
-    my $paper = shift || "A4";
-    my ($width, $height) = split(/\s+/, $size{lc($paper)} || '');
+multi method paper($paper = 'A4') {
+    my ($width, $height) = split(/\s+/, %size{lc($paper)} || '');
 
-    if (not $height and $paper =~ /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/i) {
-      $width  = $1;
-      $height = $2;
+    if (not $height and $paper ~~ /:i^(\d+[\.\d+]?)\s*x\s*(\d+[\.\d+]?)$/) {
+      $width  = $0;
+      $height = $1;
       $paper  = 'Custom';
     } # end if $paper is 'WIDTH x HEIGHT'
 
     if ($height) {
-        $o->{paper} = $paper;
-        $o->{width} = $width;
-        $o->{height} = $height;
-        if ($o->{landscape}) {
-            $o->{bbox}[0] = 0;
-            $o->{bbox}[1] = 0;
-            $o->{bbox}[2] = $height;
-            $o->{bbox}[3] = $width;
+        $!paper = $paper;
+        $!width = $width;
+        $!height = $height;
+        if $!landscape {
+            @!bbox[0] = 0;
+            @!bbox[1] = 0;
+            @!bbox[2] = $height;
+            @!bbox[3] = $width;
         } else {
-            $o->{bbox}[0] = 0;
-            $o->{bbox}[1] = 0;
-            $o->{bbox}[2] = $width;
-            $o->{bbox}[3] = $height;
+            @!bbox[0] = 0;
+            @!bbox[1] = 0;
+            @!bbox[2] = $width;
+            @!bbox[3] = $height;
         }
     }
 }
 
+=begin pod
 =attr-paper width
 
-  $ps = PostScript::File->new( width => $width )
+  $ps = PostScript::File.new( width => $width )
 
-  $width = $ps->get_width
+  $width = $ps.width
 
-  $ps->set_width( $width )
+  $ps.width( $width )
 
 The page width in points.  This is normally the shorter dimension of
 the paper.  Note that in landscape mode this is actually the height of
@@ -1597,35 +1647,34 @@ the bounding box.
 Setting this sets L</paper> to "Custom" and the L</bounding_box> is
 expanded to the full width.
 
-=cut
+=end pod
 
-sub get_width {
-    my $o = shift;
-    return $o->{width};
+multi method width() {
+    return $!width;
 }
 
-sub set_width {
-    my ($o, $width) = @_;
-    if (defined($width) and ($width+0)) {
-        $o->{width} = $width;
-        $o->{paper} = "Custom";
-        if ($o->{landscape}) {
-            $o->{bbox}[1] = 0;
-            $o->{bbox}[3] = $width;
+multi method width($width) {
+    if $width.defined and $width+0 {
+        $!width = $width;
+        $!paper = "Custom";
+        if $!landscape {
+            @!bbox[1] = 0;
+            @!bbox[3] = $width;
         } else {
-            $o->{bbox}[0] = 0;
-            $o->{bbox}[2] = $width;
+            @!bbox[0] = 0;
+            @!bbox[2] = $width;
         }
     }
 }
 
+=begin pod
 =attr-paper height
 
-  $ps = PostScript::File->new( height => $height )
+  $ps = PostScript::File.new( height => $height )
 
-  $height = $ps->get_height
+  $height = $ps.height
 
-  $ps->set_height( $height )
+  $ps.height( $height )
 
 The page height in points.  This is normally the longer dimension of the
 paper.  Note that in landscape mode this is actually the width of the
@@ -1634,34 +1683,34 @@ bounding box.
 Setting this sets L</paper> to "Custom" and the L</bounding_box> is
 expanded to the full height.
 
-=cut
+=end pod
 
-sub get_height {
-    my $o = shift;
-    return $o->{height};
+multi method height() {
+    return $!height;
 }
-sub set_height {
-    my ($o, $height) = @_;
-    if (defined($height) and ($height+0)) {
-        $o->{height} = $height;
-        $o->{paper} = "Custom";
-        if ($o->{landscape}) {
-            $o->{bbox}[0] = 0;
-            $o->{bbox}[2] = $height;
+
+multi method height($height) {
+    if $height.defined and $height+0 {
+        $!height = $height;
+        $!paper = "Custom";
+        if $!landscape {
+            @!bbox[0] = 0;
+            @!bbox[2] = $height;
         } else {
-            $o->{bbox}[1] = 0;
-            $o->{bbox}[3] = $height;
+            @!bbox[1] = 0;
+            @!bbox[3] = $height;
         }
     }
 }
 
+=begin pod
 =attr-paper landscape
 
-  $ps = PostScript::File->new( landscape => $landscape )
+  $ps = PostScript::File.new( landscape => $landscape )
 
-  $landscape = $ps->get_landscape
+  $landscape = $ps.landscape
 
-  $ps->set_landscape( $landscape )
+  $ps.landscape( $landscape )
 
 If C<$landscape> is true, the page is rotated 90 degrees
 counter-clockwise, swapping the meaning of height & width.  (Default: false)
@@ -1669,57 +1718,54 @@ counter-clockwise, swapping the meaning of height & width.  (Default: false)
 In landscape mode the coordinates are rotated 90 degrees and the origin moved to the bottom left corner.  Thus the
 coordinate system appears the same to the user, with the origin at the bottom left.
 
-=cut
+=end pod
 
-sub get_landscape {
-    my $o = shift;
-    return $o->{landscape};
+multi method landscape() {
+    return $!landscape;
 }
 
-sub set_landscape {
-    my $o = shift;
-    my $landscape = (!!shift) + 0;
-    $o->{landscape} = 0 unless (defined $o->{landscape});
-    if ($o->{landscape} != $landscape) {
-        $o->{landscape} = $landscape;
-        ($o->{bbox}[0], $o->{bbox}[1]) = ($o->{bbox}[1], $o->{bbox}[0]);
-        ($o->{bbox}[2], $o->{bbox}[3]) = ($o->{bbox}[3], $o->{bbox}[2]);
+multi method landscape($landscape) {
+    $!landscape = 0 unless $!landscape.defined;
+    if $!landscape != $landscape {
+        $!landscape = $landscape;
+        (@!bbox[0], @!bbox[1]) = (@!bbox[1], @!bbox[0]);
+        (@!bbox[2], @!bbox[3]) = (@!bbox[3], @!bbox[2]);
     }
 }
 
+=begin pod
 =attr clipping
 
-  $ps = PostScript::File->new( clipping => $clipping )
+  $ps = PostScript::File.new( clipping => $clipping )
 
-  $clipping = $ps->get_clipping
+  $clipping = $ps.clipping
 
-  $ps->set_clipping( $clipping )
+  $ps.clipping( $clipping )
 
 If C<$clipping> is true, printing will be clipped to each page's
 bounding box.  This is the document's default value.  Each page has
 its own L</page_clipping> attribute, which is initialized to this
 default value when the page is created.  (Default: false)
 
-=cut
+=end pod
 
-sub get_clipping {
-    my $o = shift;
-    return $o->{clipping};
+multi method clipping() {
+    return $!clipping;
 }
 
-sub set_clipping {
-    my $o = shift;
-    $o->{clipping} = (!!shift) + 0;
+multi method clipping($clipping) {
+    $!clipping = +$clipping;
 }
 
-our %encoding_name = qw(
-  iso-8859-1 ISOLatin1Encoding
-  cp1252     Win1252Encoding
+our %encoding_name = (
+  'iso-8859-1' => 'ISOLatin1Encoding',
+  'cp1252'     => 'Win1252Encoding'
 );
 
-%encoding_def = (
-  ISOLatin1Encoding => <<'END ISOLatin1Encoding',
-% Define ISO Latin1 encoding if it doesnt exist
+my %encoding_def;
+
+%encoding_def<ISOLatin1Encoding> = q:to<END ISOLatin1Encoding>;
+% Define ISO Latin1 encoding if it doesn't exist
 /ISOLatin1Encoding where {
 %   (ISOLatin1 exists!) =
     pop
@@ -1753,7 +1799,7 @@ our %encoding_name = qw(
 } ifelse
 END ISOLatin1Encoding
 
-  Win1252Encoding => <<'END Win1252Encoding',
+%encoding_def<Win1252Encoding> = q:to<END Win1252Encoding>;
 % Define Windows Latin1 encoding
 /Win1252Encoding StandardEncoding STARTDIFFENC
     % LanguageLevel 1 may require these to be mapped somewhere:
@@ -1791,24 +1837,21 @@ END ISOLatin1Encoding
     /ucircumflex /udieresis /yacute /thorn /ydieresis
 ENDDIFFENC
 END Win1252Encoding
-); # end %encoding_def
 
-sub _set_reencode
+method _set_reencode($encoding)
 {
-  my ($o, $encoding) = @_;
-
   return unless $encoding;
 
-  if ($encoding eq 'ISOLatin1Encoding') {
-    $o->{reencode} = $encoding;
+  if $encoding eq 'ISOLatin1Encoding' {
+    $!reencode = $encoding;
     return;
   } # end if backwards compatible ISOLatin1Encoding
 
-  $o->{reencode} = $encoding_name{$encoding}
+  $!reencode = %encoding_name{$encoding}
       or croak "Invalid reencode setting $encoding";
 
-  require Encode;  Encode->VERSION(2.21); # Need mime_name method
-  $o->{encoding} = Encode::find_encoding($encoding)
+#TODO  require Encode;  Encode.VERSION(2.21); # Need mime_name method
+  $!encoding = Encode::find_encoding($encoding)
       or croak "Can't find encoding $encoding";
 } # end _set_reencode
 
@@ -1819,30 +1862,29 @@ our %encode_char = (
  65533 => pack(C => 0x3F), # U+FFFD REPLACEMENT CHARACTER
 );
 
+=begin pod
 =method-text encode_text
 
-  $encoded_text = $ps->encode_text( $text )
+  $encoded_text = $ps.encode_text( $text )
 
 This returns C<$text> converted to the document's character encoding.
 If C<$text> does not have the UTF-8 flag set, or the document is not
 using character translation, then it returns C<$text> as-is.
 
-=cut
+=end pod
 
-sub encode_text
+method encode_text
 {
-  my $o = shift;
-
-  my $encoding = $o->{encoding};
+  my $encoding = $!encoding;
 
   if ($encoding and Encode::is_utf8( $_[0] )) {
-    $encoding->encode($_[0], sub {
-      $encode_char{$_[0]} || do {
+    $encoding.encode($_[0], sub {
+      %encode_char{$_[0]} || do {
         if ($_[0] < 0x100) {
           pack C => $_[0];      # Unmapped chars stay themselves
         } else {
           warn sprintf("PostScript::File can't convert U+%04X to %s\n",
-                       $_[0], $encoding->name);
+                       $_[0], $encoding.name);
           '?'
         }
       }; # end invalid character
@@ -1852,9 +1894,10 @@ sub encode_text
   }
 } # end encode_text
 
+=begin pod
 =method-text decode_text
 
-  $text = $ps->decode_text( $encoded_text, [$preserve_minus] )
+  $text = $ps.decode_text( $encoded_text, [$preserve_minus] )
 
 This is the inverse of L</encode_text>.  It converts C<$encoded_text>
 from the document's character encoding into Unicode.  If
@@ -1868,27 +1911,26 @@ C<$encoded_text> is not being returned as-is), then any HYPHEN-MINUS
 (U+2212).  This ensures that C<encode_text> will treat them as minus
 signs instead of hyphens.
 
-=cut
+=end pod
 
-sub decode_text
+method decode_text
 {
-  my $o = shift; # $text, $preserve_minus
-
-  my $encoding = $o->{encoding};
+  my $encoding = $!encoding;
 
   if ($encoding and not Encode::is_utf8( $_[0] )) {
-    my $text = $encoding->decode($_[0], sub { pack U => shift });
+    my $text = $encoding.decode($_[0], sub { pack U => shift });
     # Protect - from hyphen-minus processing if $preserve_minus:
-    $text =~ s/-/\x{2212}/g if $_[1];
+    $text ~~ s:g/\-/\x[2212]/ if $_[1];
     $text;
   } else {
     $_[0];
   }
 } # end decode_text
 
+=begin pod
 =method-text convert_hyphens
 
-  $converted_text = $ps->convert_hyphens( $text )
+  $converted_text = $ps.convert_hyphens( $text )
 
 Converts any HYPHEN-MINUS (U+002D) characters in C<$text> to either
 HYPHEN (U+2010) or MINUS SIGN (U+2212) according to the rules
@@ -1901,30 +1943,29 @@ the document's character encoding.
 If C<$text> does not contain any HYPHEN-MINUS characters, it is
 returned as-is.
 
-=cut
+=end pod
 
-sub convert_hyphens
+method convert_hyphens($text)
 {
-  my $o = shift;
-  if ($_[0] =~ /-/) {
+  if ($text ~~ /\-/) {
     # Text contains at least one hyphen-minus character:
-    my $text = $o->decode_text(shift);
+    $text = self.decode_text($text);
 
     # If it's surrounded by whitespace, or
     # it's preceded by whitespace and followed by a digit,
     # it's a minus sign (U+2212):
-    $text =~ s/(?: ^ | (?<=\s) ) - (?= \d | \s | $ ) /\x{2212}/gx;
+#TODO    $text ~~ s:g/(?: ^ | (?<=\s) ) \- (?= \d | \s | $ ) /\x[2212]/;
 
     # If it's surrounded by digits, or
     # it's preceded by punctuation and followed by a digit,
     # it's a minus sign (U+2212):
-    $text =~ s/ (?<=[\d[:punct:]]) - (?=\d) /\x{2212}/gx;
+#TODO    $text ~~ s:g/ (?<=[\d[:punct:]]) \- (?=\d) /\x[2212]/;
 
     # If it's followed by a currency symbol, it's a minus sign (U+2212):
-    $text =~ s/ - (?=\p{Sc}) /\x{2212}/gx;
+#TODO    $text ~~ s:g/ \- (?=\p{Sc}) /\x[2212]/;
 
     # Otherwise, it's a hyphen (U+2010):
-    $text =~ s/-/\x{2010}/gx;
+    $text ~~ s:g/\-/\x[2010]/;
 
     $text;
   } else {
@@ -1932,9 +1973,10 @@ sub convert_hyphens
   }
 } # end convert_hyphens
 
+=begin pod
 =method-access get_metrics
 
-  $metrics = $ps->get_metrics( $font, [$size, [$encoding]] )
+  $metrics = $ps.get_metrics( $font, [$size, [$encoding]] )
 
 Construct a L<PostScript::File::Metrics> object for C<$font>.
 The C<$encoding> is normally determined automatically from the font
@@ -1949,44 +1991,44 @@ No matter what encoding the font uses, the Metrics object will always
 use the same Unicode translation setting as this document.  It also
 inherits the current value of the L</auto_hyphen> attribute.
 
-=cut
+=end pod
 
-sub get_metrics
+method get_metrics($font, $size?, $encoding?)
 {
-  my ($o, $font, $size, $encoding) = @_;
-
   # Figure out what encoding to ask for:
+    my $font_suffix = $!font_suffix;
   unless ($encoding) {
-    if ($font eq 'Symbol') {
+    if $font eq 'Symbol' {
       $encoding = 'sym';
     }
-    elsif ($o->{reencode} and $font =~ s/\Q$o->{font_suffix}\E$//) {
-      $encoding = $o->{encoding}->name || 'iso-8859-1';
+    elsif $!reencode and $font ~~ s/$font_suffix$// {
+      $encoding = $!encoding.name || 'iso-8859-1';
     } else {
       $encoding = 'std';
     }
   } # end unless $encoding supplied as parameter
 
   # Create the Metrics object:
-  require PostScript::File::Metrics;
-  my $metrics = PostScript::File::Metrics->new($font, $size, $encoding);
+#TODO  require PostScript::File::Metrics; # TODO
+  my $metrics = PostScript::File::Metrics.new($font, $size, $encoding);
 
   # Whatever encoding they asked for, make sure that the
   # auto-translation matches what we're doing:
-  $metrics->{encoding} = $o->{encoding};
-  $metrics->{auto_hyphen} = $o->{auto_hyphen};
+  $metrics<encoding> = $!encoding;
+  $metrics<auto_hyphen> = $!auto_hyphen;
 
   $metrics;
 } # end get_metrics
 #---------------------------------------------------------------------
 
+=begin pod
 =attr strip (attribute)
 
-  $ps = PostScript::File->new( strip => $strip )
+  $ps = PostScript::File.new( strip => $strip )
 
-  $strip = $ps->get_strip
+  $strip = $ps.strip_type
 
-  $ps->set_strip( $strip )
+  $ps.strip_type( $strip )
 
 Determine whether the PostScript code is filtered.  C<$strip> must be
 one of the following values:
@@ -2002,9 +2044,9 @@ C<space>.
 
 =method-text strip (method)
 
-  $ps->strip( $code )
+  $ps.strip( $code )
 
-  $ps->strip( $strip => @code )
+  $ps.strip( $strip => @code )
 
 The C<strip> method filters PostScript code according to the value of
 C<$strip>, which can be any valid value for the L<strip|/"strip (attribute)">
@@ -2014,38 +2056,34 @@ If C<$code> is C<undef>, it is left unchanged.
 When called with a single argument, strips C<$code> according to the
 current value of the C<strip> attribute.
 
-=cut
+=end pod
 
-sub get_strip {
-    my $o = shift;
-    return $o->{strip_type};
+multi method strip_type() {
+    return $!strip_type;
 }
 
-my $eolRE   = qr/(?>\r\n?|\n)/;
-my $noeolRE = qr/[^\r\n]/;
-my $nonwsRE = qr/[^ \t\r\n]/;
+my regex eolRE {\r\n?|\n};
+my regex noeolRE {^\r\n};
+my regex nonwsRE {^ \t\r\n};
 
 my %strip_re = (
   none     => 0,                             # remove nothing
-  space    => qr{\G^\s+}m,                   # remove leading spaces
+  space    => regex {^\s+},                   # remove leading spaces
   # remove leading spaces and single line comments (except %% and %!):
-  comments => qr{\G^(?:\s+|%(?![!%])(?:$noeolRE)*(?:$eolRE))}mo,
+  comments => regex {^\s+|[\%<[-%!]>]<noeolRE>*<eolRE>},
   # remove leading spaces and all comments (except %% and %!):
-  all_comments => qr{\G (?: ^\s+
-                          | ^% (?![!%]) (?:$noeolRE)* (?:$eolRE)
-                          | [ \t]*%(?![!%]) (?:$noeolRE)* )
-                    }mox,
+  all_comments => regex { ^\s+
+                          | ^ \% <[-!%]> <noeolRE>* <eolRE>
+                          | [ \t]*%<[-!%]> <noeolRE>*
+                    },
 ); # end strip_re
 
-sub set_strip {
-    my ($o, $strip) = @_;
+multi method strip_type($stript) {
+    my $strip = $stript.defined ?? 'space' !! $strip.lc ;
 
-    if (not defined $strip) { $strip = 'space'   }
-    else                    { $strip = lc $strip }
-
-    defined($o->{strip} = $strip_re{$strip})
-        or croak "Invalid strip type $strip";
-    $o->{strip_type} = $strip;
+    $!strip = %strip_re{$strip};
+    croak "Invalid strip type $strip" unless $!strip.defined;
+    $!strip_type = $stript;
 }
 
 #sub chkpt
@@ -2055,49 +2093,49 @@ sub set_strip {
 #  printf "%d: %s\n", pos(), $at;
 #} # end chkpt
 
-sub strip
-{
-  my $o = shift;
-
+method strip(@text, :$strip = '') {
   my $re;
-  if (@_ > 1) {
-    my $strip = shift;
-    defined($re = $strip_re{$strip})
-        or croak "Invalid strip type $strip";
+  if $strip {
+    if %strip_re{$strip}.defined {
+      $re = %strip_re{$strip};
+    } else {
+      croak "Invalid strip type $strip";
+    }
   } else {
-    $re = $o->{strip};
+    $re = $!strip;
   }
 
   return unless $re;
 
   my $pos;
 
-  for (@_) {
-    next unless defined $_;
+  for @text -> $text {
+    next unless $text.defined;
     pos() = 0;
-    while (pos() < length) {
-      next if m/\G<~[^~]*~>/gc
-           or m/\G\( (?: [^\\)]+ | \\. )* \)/sgcx;
+    while (pos() < length) { # TODO -- what is this?
+#TODO      next if m/<~[^~]*~>/gc
+#           or m/\( (?: [^\\)]+ | \\. )* \)/sgcx;
       $pos = pos();
-      if (s/$re//m) {
+      if (s/<$re>//) {
         pos() = $pos;
       } else {
         pos() = $pos;
-        m/\G[ \t]*(?:$eolRE|(?:$nonwsRE)+(?:$eolRE)?)/ogc;
+#TODO        m/\G[ \t]*(?:$eolRE|(?:$nonwsRE)+(?:$eolRE)?)/ogc;
         die "Infinite loop" if pos() == $pos;
       }
     }
-  } # end for @_
+  }
 
   return;
 } # end strip
 #---------------------------------------------------------------------
 
+=begin pod
 =attr-page page_landscape
 
-  $landscape = $ps->get_page_landscape( [$page] )
+  $landscape = $ps.page_landscape( [$page] )
 
-  $ps->set_page_landscape( [[$page,] $landscape] )
+  $ps.page_landscape( $landscape [,$page] )
 
 If C<$landscape> is true, this page is using landscape mode. (Default:
 false)
@@ -2105,33 +2143,28 @@ false)
 When a page is created, C<page_landscape> is initialized from the
 document's L</landscape> attribute.
 
-=cut
+=end pod
 
-sub get_page_landscape {
-    my $o = shift;
-    my $p = $o->_get_ordinal( shift );
-    return $o->{pagelandsc}[$p];
+multi method page_landscape(Int $page = 0) {
+    return @!pagelandsc[$page];
 }
 
-sub set_page_landscape {
-    my $o = shift;
-    my $p = (@_ == 2) ? $o->_get_ordinal(shift) : $o->{p};
-    my $landscape = (!!shift) + 0;
-    $o->{pagelandsc}[$p] = 0 unless (defined $o->{pagelandsc}[$p]);
-    if ($o->{pagelandsc}[$p] != $landscape) {
-        ($o->{pagebbox}[$p][0], $o->{pagebbox}[$p][1]) = ($o->{pagebbox}[$p][1], $o->{pagebbox}[$p][0]);
-        ($o->{pagebbox}[$p][2], $o->{pagebbox}[$p][3]) = ($o->{pagebbox}[$p][3], $o->{pagebbox}[$p][2]);
+multi method page_landscape($landscape, $p = 0) {
+    if @!pagelandsc[$p] != $landscape {
+        (@!pagebbox[$p][0], @!pagebbox[$p][1]) = (@!pagebbox[$p][1], @!pagebbox[$p][0]);
+        (@!pagebbox[$p][2], @!pagebbox[$p][3]) = (@!pagebbox[$p][3], @!pagebbox[$p][2]);
     }
-    $o->{pagelandsc}[$p] = $landscape;
+    @!pagelandsc[$p] = $landscape;
 }
 
 #---------------------------------------------------------------------
 
+=begin pod
 =attr-page page_clipping
 
-  $clipping = $ps->get_page_clipping( [$page] )
+  $clipping = $ps.page_clipping( [$page] )
 
-  $ps->set_page_clipping( [[$page,] $clipping] )
+  $ps.page_clipping( $clipping [,$page] )
 
 If C<$clipping> is true, printing will be clipped to this page's
 bounding box. (Default: false)
@@ -2139,27 +2172,24 @@ bounding box. (Default: false)
 When a page is created, C<page_clipping> is initialized from the
 document's L</clipping> attribute.
 
-=cut
+=end pod
 
-sub get_page_clipping {
-    my $o = shift;
-    my $p = $o->_get_ordinal( shift );
-    return $o->{pageclip}[$p];
+multi method page_clipping(Int $p = 0) {
+    return @!pageclip[$p];
 }
 
-sub set_page_clipping {
-    my $o = shift;
-    my $p = (@_ == 2) ? $o->_get_ordinal(shift) : $o->{p};
-    $o->{pageclip}[$p] = (!!shift) + 0;
+multi method set_page_clipping($clipping, $p = 0) {
+    @!pageclip[$p] = $clipping;
 }
 
+=begin pod
 =attr-page page_label
 
-  $ps = PostScript::File->new( page => $page )
+  $ps = PostScript::File.new( page => $page )
 
-  $page = $ps->get_page_label
+  $page = $ps.page_label
 
-  $ps->set_page_label( [$page] )
+  $ps.page_label( $page )
 
 The label for the current page (used in the C<%%Page> comment).  (Default: "1")
 
@@ -2171,26 +2201,24 @@ When a page is created, C<page_label> is initialized by passing the
 previous page's label to the L</incpage_handler>.  For the first page,
 it's initialized from the C<page> given to the constructor.
 
-=cut
+=end pod
 
-sub get_page_label {
-    my $o = shift;
-    return $o->{page}[$o->{p}];
+multi method get_page_label() {
+    return @!page[$!p];
 }
 
-sub set_page_label {
-    my $o = shift;
-    my $page = shift || 1;
-    $o->{page}[$o->{p}] = $page;
+multi method page_label($page) {
+    @!page[$!p] = $page;
 }
 
+=begin pod
 =attr incpage_handler
 
-  $ps = PostScript::File->new( incpage_handler => \&handler )
+  $ps = PostScript::File.new( incpage_handler => \&handler )
 
-  $handler = $ps->get_incpage_handler
+  $handler = $ps.incpage_handler
 
-  $ps->set_incpage_handler( [\&handler] )
+  $ps.incpage_handler( \&handler )
 
 The function used to increment the page label when creating a new
 page.  C<\&handler> is a reference to a subroutine that takes the
@@ -2201,136 +2229,135 @@ autoincrement operator) and L</incpage_roman> (which handles lowercase
 Roman numberals from i to xxxix, 1-39) functions for use as
 C<incpage_handler>.  (Default: C<\&incpage_label>)
 
-=cut
+=end pod
 
-sub get_incpage_handler {
-    my $o = shift;
-    return $o->{incpage};
+multi method incpage_handler() {
+    return $!incpage;
 }
 
-sub set_incpage_handler {
-    my $o = shift;
-    $o->{incpage} = shift || \&incpage_label;
+multi method  incpage_handler($incpage) {
+    $!incpage = $incpage || \&incpage_label;
 }
 
+=begin pod
 =attr order
 
-  $ps = PostScript::File->new( order => $order )
+  $ps = PostScript::File.new( order => $order )
 
-  $order = $ps->get_order
+  $order = $ps.order
 
 The order the pages are defined in the document, for use in the
 C<%%PageOrder> DSC comment.  It must be one of "Ascend", "Descend" or
 "Special" (meaning a document manager must not reorder the pages).
 The default is C<undef>, meaning omit the C<%%PageOrder> comment.
 
-=cut
+=end pod
 
-sub get_order {
-    my $o = shift;
-    return $o->{order};
+multi method order() {
+    return $!order;
 }
 
+=begin pod
 =attr title
 
-  $ps = PostScript::File->new( title => $title )
+  $ps = PostScript::File.new( title => $title )
 
-  $title = $ps->get_title
+  $title = $ps.title
 
 The document's title for use in the C<%%Title> DSC comment.  The
 default (C<undef>) means to use the document's filename as the title.
 If no filename is available when the document is output, the
 C<%%Title> comment wil be omitted.
 
-=cut
+=end pod
 
-sub get_title {
-    my $o = shift;
-    return $o->{title};
+multi method title() {
+    return $!title;
 }
 
+=begin pod
 =attr version
 
-  $ps = PostScript::File->new( version => $version )
+  $ps = PostScript::File.new( version => $version )
 
-  $version = $ps->get_version
+  $version = $ps.version
 
 The document's version for use in the C<%%Version> DSC comment.  The
 C<$version> should be a string in the form S<C<VERNUM REV>>, where
 C<VERNUM> is a floating point number and C<REV> is an unsigned
 integer.  (Default: C<undef>, meaning omit the C<%%Version> comment)
 
-=cut
+=end pod
 
-sub get_version {
-    my $o = shift;
-    return $o->{version};
+multi method version() {
+    return $!version;
 }
 
+=begin pod
 =attr langlevel
 
-  $ps = PostScript::File->new( langlevel => $langlevel )
+  $ps = PostScript::File.new( langlevel => $langlevel )
 
-  $langlevel = $ps->get_langlevel
+  $langlevel = $ps.langlevel
 
-  $ps->set_min_langlevel( $langlevel ) # added in v2.20
+  $ps.langlevel( $langlevel ) # added in v2.20
 
 The level of the PostScript language used in this document, for use in
-the C<%%LanguageLevel> DSC comment.  The L</set_min_langlevel> method
+the C<%%LanguageLevel> DSC comment.  The L</langlevel> method
 can be used to raise the language level, but it cannot be decreased.
 (Default: C<undef>, meaning omit the C<%%LanguageLevel> comment)
 
-=method-access set_min_langlevel
+=method-access langlevel
 
-  $new_langlevel = $ps->set_min_langlevel( $langlevel )
+  $new_langlevel = $ps.langlevel( $langlevel )
 
 (v2.20) Set the L</langlevel> attribute of this document to
 C<$langlevel>, but only if the current level is less than
 C<$langlevel>.  It returns the value of C<langlevel>, which will be
 greater than or equal to C<$langlevel>.
 
-=cut
+=end pod
 
-sub get_langlevel {
-    my $o = shift;
-    return $o->{langlevel};
+multi method langlevel() {
+    return $!langlevel;
 }
 
-sub set_min_langlevel
+multi method langlevel($level)
 {
-  my ($o, $level) = @_;
-  $o->{langlevel} = $level unless ($o->{langlevel} || 0) >= $level;
-  return $o->{langlevel};
+  $level = 0 unless $level;
+  $!langlevel = $level unless $!langlevel >= $level;
+  return $!langlevel;
 }
 
+=begin pod
 =attr extensions
 
-  $ps = PostScript::File->new( extensions => $extensions )
+  $ps = PostScript::File.new( extensions => $extensions )
 
-  $extensions = $ps->get_extensions
+  $extensions = $ps.extensions
 
 The PostScript extensions required by this document, for use in the
 C<%%Extensions> DSC comment.  (Default: C<undef>, meaning omit the
 C<%%Extensions> comment)
 
-=cut
+=end pod
 
-sub get_extensions {
-    my $o = shift;
-    return $o->{extensions};
+multi method extensions() {
+    return $!extensions;
 }
 
+=begin pod
 =attr-paper bounding_box
 
-  ( $llx, $lly, $urx, $ury ) = $ps->get_bounding_box
+  ( $llx, $lly, $urx, $ury ) = $ps.bounding_box
 
-  $ps->set_bounding_box( $llx, $lly, $urx, $ury )
+  $ps.bounding_box( $llx, $lly, $urx, $ury )
 
 The bounding box for the whole document.  The lower left corner is
 S<C<($llx, $lly)>>, and the upper right corner is S<C<($urx, $ury)>>.
 
 Setting the bounding box automatically enables clipping.  Call
-C<< $ps->set_clipping(0) >> afterwards to undo that.
+C<< $ps.clipping(0) >> afterwards to undo that.
 
 The default C<bounding_box> is calculated from the paper size (taken
 from the L</paper>, L</height>, and L</width> attributes) and the
@@ -2340,136 +2367,115 @@ Each page also has an individual L</page_bounding_box>, which is
 initialized from the document's C<bounding_box> when the page is
 created.
 
-=cut
+=end pod
 
-sub get_bounding_box {
-    my $o = shift;
-    return @{$o->{bbox}};
+multi method bounding_box() {
+    return @!bbox;
 }
 
-sub set_bounding_box {
-    my ($o, $x0, $y0, $x1, $y1) = @_;
-    $o->{bbox} = [ $x0, $y0, $x1, $y1 ] if (defined $y1);
-    $o->set_clipping(1);
+multi method bounding_box($x0, $y0, $x1, $y1) {
+    @!bbox = ($x0, $y0, $x1, $y1);
+    $!clipping = 1;
 }
 
+=begin pod
 =method-access get_printable_width
 
-  $width = $ps->get_printable_width
+  $width = $ps.printable_width
 
 (v2.10) Returns the width of the document's bounding box (S<C<urx - llx>>).
 
 =method-access get_printable_height
 
-  $height = $ps->get_printable_height
+  $height = $ps.printable_height
 
 (v2.10) Returns the height of the document's bounding box (S<C<ury - lly>>).
 
-=cut
+=end pod
 
-sub get_printable_width
-{
-  my $bb = shift->{bbox};
-  return $bb->[2] - $bb->[0];
+multi method get_printable_width() {
+  return @!bbox[2] - @!bbox[0];
 } # end get_printable_width
 
-sub get_printable_height
-{
-  my $bb = shift->{bbox};
-  return $bb->[3] - $bb->[1];
+multi method printable_height() {
+  return @!bbox[3] - @!bbox[1];
 } # end get_printable_height
 
+=begin pod
 =attr-page page_bounding_box
 
-  ( $llx, $lly, $urx, $ury ) = $ps->get_page_bounding_box( [$page] )
+  ( $llx, $lly, $urx, $ury ) = $ps.page_bounding_box( [$page] )
 
-  $ps->set_page_bounding_box( [$page,] $llx, $lly, $urx, $ury )
+  $ps.page_bounding_box( $llx, $lly, $urx, $ury [,$page] )
 
 The bounding box for this page.  The lower left corner is
 S<C<($llx, $lly)>>, and the upper right corner is S<C<($urx, $ury)>>.
 
-Note that calling C<set_page_bounding_box> automatically enables
+Note that calling C<page_bounding_box> automatically enables
 clipping for that page.  If this isn't what you want, call
-C<< $ps->set_page_clipping(0) >> afterwards.
+C<< $ps.page_clipping(0) >> afterwards.
 
 When a page is created, C<page_bounding_box> is initialized from the
 document's L</bounding_box> attribute.
 
-=cut
+=end pod
 
-sub get_page_bounding_box {
-    my $o = shift;
-    my $p = $o->_get_ordinal( shift );
-    return @{$o->{pagebbox}[$p]};
+multi method page_bounding_box(:$page = 0) {
+    return @!pagebbox[$page];
 }
 
-sub set_page_bounding_box {
-    my $o = shift;
-    my $page = (@_ == 5) ? shift : "";
-    if (@_ == 4) {
-        my $p = $o->_get_ordinal($page);
-        $o->{pagebbox}[$p] = [ @_ ];
-        $o->set_page_clipping($page, 1);
-    }
+multi method page_bounding_box($x0, $y0, $x1, $y1, :$page = 0) {
+    @!pagebbox[$page] = ($x0, $y0, $x1, $y1);
+    @!page_clipping[$page] = 1;
 }
 
-=method-access get_page_printable_width
+=begin pod
+=method-access page_printable_width
 
-  $width = $ps->get_page_printable_width( [$page] )
+  $width = $ps.page_printable_width( [$page] )
 
 (v2.10) Returns the width of the page's bounding box (S<C<urx - llx>>.
 
-=method-access get_page_printable_height
+=method-access page_printable_height
 
-  $height = $ps->get_page_printable_height( [$page] )
+  $height = $ps.page_printable_height( [$page] )
 
 (v2.10) Returns the height of the page's bounding box (S<C<ury - lly>>).
 
-=cut
+=end pod
 
-sub get_page_printable_width
-{
-  my $o = shift;
-  my $bb = $o->{pagebbox}[$o->_get_ordinal( shift )];
-  return $bb->[2] - $bb->[0];
+multi method page_printable_width($p = 0) {
+    return @!bbox[2] - @!bbox[0];
 } # end get_page_printable_width
 
-sub get_page_printable_height
-{
-  my $o = shift;
-  my $bb = $o->{pagebbox}[$o->_get_ordinal( shift )];
-  return $bb->[3] - $bb->[1];
+multi method page_printable_height($p = 0) {
+  return @!bbox[3] - @!bbox[1];
 } # end get_page_printable_height
 
-=method-access set_page_margins
+=begin pod
+=method-access page_margins
 
-  $ps->set_page_margins( [$page,] $left, $bottom, $right, $top )
+  $ps.page_margins( $left, $bottom, $right, $top [,$page] )
 
 This sets the L</page_bounding_box> based on the paper size and the
 specified margins.  It also automatically enables clipping for the
-page.  If this isn't what you want, call C<< $ps->set_page_clipping(0) >>
+page.  If this isn't what you want, call C<< $ps.set_page_clipping(0) >>
 afterwards.
 
-=cut
+=end pod
 
-sub set_page_margins {
-    my $o = shift;
-    my $page = (@_ == 5) ? shift : "";
-    if (@_ == 4) {
-        my ($left, $bottom, $right, $top) = @_;
-        my $p = $o->_get_ordinal($page);
-        if ($o->{pagelandsc}[$p]) {
-            $o->{pagebbox}[$p] = [ $left, $bottom, $o->{height}-$right, $o->{width}-$top ];
+multi method set_page_margins($left, $bottom, $right, $top, :$page = 0) {
+        if (@!pagelandsc[$page]) {
+            @!pagebbox[$page] = ($left, $bottom, $!height-$right, $!width-$top);
         } else {
-            $o->{pagebbox}[$p] = [ $left, $bottom, $o->{width}-$right, $o->{height}-$top ];
+            @!pagebbox[$page] = ($left, $bottom, $!width-$right, $!height-$top);
         }
-        $o->set_page_clipping($page, 1);
-    }
+        self.page_clipping($page, 1);
 }
 
 # =method-access get_ordinal
 #
-#   $index = $ps->get_ordinal( [$page] )
+#   $index = $ps.get_ordinal( [$page] )
 #
 # Returns the internal number for the page label specified.  (Default:
 # current page)
@@ -2484,34 +2490,34 @@ sub set_page_margins {
 #
 # =cut
 
-sub _get_ordinal
+method _get_ordinal($page = 1)
 {
-    my ($o, $page) = @_;
     if ($page) {
-        for (my $i = 0; $i <= $o->{pagecount}; $i++) {
-            my $here = $o->{page}->[$i] || "";
+        for 1..$!pagecount -> $i {
+            my $here = @!page[$i] || "";
             return $i if ($here eq $page);
         }
     }
-    return $o->{p};
+    return $!p;
 }
 
-=method-access get_pagecount
+=begin pod
+=method-access pagecount
 
-  $pages = $ps->get_pagecount
+  $pages = $ps.pagecount
 
 Returns the number of pages currently in the document.
 
-=cut
+=end pod
 
-sub get_pagecount {
-    my $o = shift;
-    return $o->{pagecount};
+multi method pagecount() {
+    return $!pagecount;
 }
 
-=method-access set_variable
+=begin pod
+=method-access variable
 
-  $ps->set_variable( $key, $value )
+  $ps.variable( $key, $value )
 
 Assign a user defined hash key and value.  Provided to keep track of
 states within the PostScript code, such as which dictionaries are
@@ -2520,29 +2526,29 @@ for client programs.  It is recommended that C<$key> is the module
 name to avoid clashes.  The C<$value> could then be a hash holding any
 number of user variables.
 
-=cut
+=end pod
 
-sub set_variable {
-    my ($o, $key, $value) = @_;
-    $o->{vars}{$key} = $value;
+multi method variable($key, $value) {
+    %!vars{$key} = $value;
 }
 
-=method-access get_variable
+=begin pod
+=method-access variable
 
-  $value = $ps->get_variable( $key )
+  $value = $ps.variable( $key )
 
 Retrieve a user defined value previously assigned by L</set_variable>.
 
-=cut
+=end pod
 
-sub get_variable {
-    my ($o, $key) = @_;
-    return $o->{vars}{$key};
+multi method variable($key) {
+    return %!vars{$key};
 }
 
-=method-access set_page_variable
+=begin pod
+=method-access page_variable
 
-  $ps->set_page_variable( $key, $value )
+  $ps.page_variable( $key, $value )
 
 Assign a user defined hash key and value only valid on the current
 page.  Provided to keep track of states within the PostScript code,
@@ -2551,42 +2557,42 @@ use this (except to clear it at the start of each page).  It is
 recommended that C<$key> is the module name to avoid clashes.  The
 C<$value> could then be a hash holding any number of user variables.
 
-=cut
+=end pod
 
-sub set_page_variable {
-    my ($o, $key, $value) = @_;
-    $o->{pagevars}{$key} = $value;
+multi method page_variable($key, $value) {
+    %!pagevars{$key} = $value;
 }
 
-=method-access get_page_variable
+=begin pod
+=method-access page_variable
 
-  $value = $ps->get_page_variable( $key )
+  $value = $ps.page_variable( $key )
 
 Retrieve a user defined value previously assigned by L</set_page_variable>.
 
-=cut
+=end pod
 
-sub get_page_variable {
-    my ($o, $key) = @_;
-    return $o->{pagevars}{$key};
+multi method page_variable($key) {
+    return %!pagevars{$key};
 }
 
-=method-content get_comments
+=begin pod
+=method-content comments
 
-  $comments = $ps->get_comments
+  $comments = $ps.comments
 
 Retrieve any extra DSC comments added by L</add_comment>.
 
-=cut
+=end pod
 
-sub get_comments {
-    my $o = shift;
-    return $o->{Comments};
+multi method comments() {
+    return $!Comments;
 }
 
-=method-content add_comment
+=begin pod
+=method-content comment
 
-  $ps->add_comment( $comment )
+  $ps.comment( $comment )
 
 Append a comment to the document's DSC comments section.  Most of the
 required and recommended comments are set directly from the document's
@@ -2602,123 +2608,121 @@ you should use L</need_resource> instead.
 
 Examples:
 
-    $ps->add_comment("ProofMode: NotifyMe");
-    $ps->add_comment("Requirements: manualfeed");
+    $ps.comment("ProofMode: NotifyMe");
+    $ps.comment("Requirements: manualfeed");
 
-=cut
+=end pod
 
-sub add_comment {
-    my ($o, $entry) = @_;
-    $o->{Comments} .= "\%\%$entry\n" if defined($entry);
+multi method comment($entry) {
+    $!Comments ~= "\%\%$entry\n" if $entry.defined;
 }
 
-=method-content get_preview
+=begin pod
+=method-content preview
 
-  $preview = $ps->get_preview
+  $preview = $ps.preview
 
 Returns the EPSI preview of the document, if any, including the
 C<%%BeginPreview> and C<%%EndPreview> comments.
 
-=cut
+=end pod
 
-sub get_preview {
-    my $o = shift;
-    return $o->{Preview};
+multi method preview() {
+    return $!Preview;
 }
 
-=method-content add_preview
+=begin pod
+=method-content preview
 
-  $ps->add_preview( $width, $height, $depth, $lines, $preview )
+  $ps.preview( $width, $height, $depth, $lines, $preview )
 
 Sets the EPSI format preview for this document - an ASCII
 representation of a bitmap.  Only EPS files should have a preview, but
 that is not enforced.  If an EPS file has a preview it becomes an EPSI
 file rather than EPSF.
 
-=cut
+=end pod
 
-sub add_preview {
-  my ($o, $width, $height, $depth, $lines, $entry) = @_;
-  if (defined $entry) {
-    $entry .= "\n";
-    $o->strip(space => $entry);
-    $o->{Preview} =
-      "%%BeginPreview: $width $height $depth $lines\n$entry%%EndPreview\n";
+multi method preview($width, $height, $depth, $lines, $entry) {
+  if $entry.defined {
+    $entry ~= "\n";
+    self.strip(space => $entry);
+    $!Preview =
+      "\%\%BeginPreview: $width $height $depth $lines\n$entry\%\%EndPreview\n";
   }
 } # end add_preview
 
-=method-content get_defaults
+=begin pod
+=method-content defaults
 
-  $comments = $ps->get_defaults
+  $comments = $ps.defaults
 
 Returns the contents of the DSC Defaults section, if any.
 
-=cut
+=end pod
 
-sub get_defaults {
-    my $o = shift;
-    return $o->{Defaults};
+multi method defaults() {
+      return $!Defaults;
 }
 
-=method-content add_default
+=begin pod
+=method-content default
 
-  $ps->add_default( $default )
+  $ps.default( $default )
 
 Use this to append a PostScript DSC comment to the Defaults section.
 These would be typically values like C<PageCustomColors:> or
 C<PageRequirements:>.  The format is the same as for L</add_comment>.
 
-=cut
+=end pod
 
-sub add_default {
-    my ($o, $entry) = @_;
-    $o->{Defaults} .= "\%\%$entry\n" if defined($entry);
+multi method default($entry) {
+    $!Defaults ~= "\%\%$entry\n" if $entry.defined;
 }
 
-=method-content get_resources
+=begin pod
+=method-content resources
 
-  $resources = $ps->get_resources
+  $resources = $ps.resources
 
 Returns all resources provided by this document.  This does not
 include procsets.
 
-=cut
+=end pod
 
-sub get_resources {
-    my $o = shift;
-    return $o->{Fonts} . $o->{Resources};
+multi method resources() {
+    return $!Fonts ~ $!Resources;
 }
 
-our %supplied_type = (qw(
-  Document  file
-  Feature) => ''
+our %supplied_type = (
+  Document => '',
+  file     => '',
+  Feature  => ''
 );
 
-our %add_resource_accepts = map { $_ => 1 } qw(
-  encoding file font form pattern
-);
+our %add_resource_accepts = <encoding file font form pattern>.map({$_ => 1});
+
 # add_resource does not accept procset, but need_resource does:
-$add_resource_accepts{procset} = undef;
+%add_resource_accepts<procset> = Int;
 
-sub add_resource {
-    my ($o, $type, $name, $params, $resource) = @_;
+multi method resource($type, $name, $params, $resource) {
 
-    my $suptype = $supplied_type{$type};
+    my $suptype = %supplied_type{$type};
     my $restype = '';
 
     croak "add_resource does not accept type $type"
-        unless defined($suptype) or $add_resource_accepts{lc $type};
+        unless defined($suptype) or %add_resource_accepts{lc $type};
 
-    unless (defined $suptype) {
+    unless $suptype.defined {
       $suptype = lc $type;
       $restype = "$suptype ";
       $type    = 'Resource';
     } # end unless Document or Feature
 
-    if (defined($resource)) {
-        $o->strip($resource);
-        $name = $o->quote_text($name);
-        $o->{DocSupplied} .= $o->encode_text("\%\%+ $suptype $name\n")
+    if $resource.defined {
+        self.strip($resource);
+        $name = self.quote_text($name);
+        $!DocSupplied ~= self.encode_text("\%\%+ $suptype $name\n")
             if $suptype;
 
         # Store fonts separately, because they need to come first:
@@ -2726,22 +2730,23 @@ sub add_resource {
 
         if ($suptype eq 'font') {
           $storage = 'Fonts';
-          push @{ $o->{embed_fonts} }, $name; # Remember to reencode it
+          push @($!embed_fonts), $name; # Remember to reencode it
         } # end if adding Font
 
-        $name .= " $params" if defined $params and length $params;
+        $name ~= " $params" if $params.defined and $params.bytes;
 
-        $o->{$storage} .= $o->_here_doc(<<END_USER_RESOURCE);
-            \%\%Begin${type}: $restype$name
+        $!storage ~= qq:to<END_USER_RESOURCE>;
+            \%\%Begin$type: $restype$name
             $resource
             \%\%End$type
 END_USER_RESOURCE
     }
 }
 
-=method-content add_resource
+=begin pod
+=method-content resource
 
-  $ps->add_resource( $type, $name, $params, $resource )
+  $ps.resource( $type, $name, $params, $resource )
 
 =over 4
 
@@ -2771,37 +2776,34 @@ or L</embed_document>).  L</add_procset> is provided for functions.
 
 Example
 
-    $ps->add_resource( "File", "My_File1",
-                       "", <<END_FILE1 );
+    $ps.resource( "File", "My_File1",
+                       "", q:to<END_FILE1>;
         ...PostScript resource definition
     END_FILE1
 
-=cut
+=end pod
 
-=method-content get_procsets
+=begin pod
+=method-content procsets
 
-  $code = $ps->get_procsets
+  $code = $ps.procsets
 
 (v2.20) Return all the procsets defined in this document.
 
-=cut
+=end pod
 
-sub get_procsets
-{
-    my $o = shift;
-    return $o->{Functions};
+multi method procsets() {
+    return $!Functions;
 }
 
-sub add_procset
-{
-    my ($o, $name, $entry, $version, $revision) = @_;
-    if (defined($name) and defined($entry)) {
-        return if $o->has_procset($name);
-        $o->strip($entry);
-        $name = sprintf('%s %g %d', $o->quote_text($name),
+multi method procset($name, $entry, $version = 0.0, $revision = 0) {
+    if $name.defined and $entry.defined {
+        return if self.has_procset($name);
+        self.strip($entry);
+        $name = sprintf('%s %g %d', self.quote_text($name),
                         $version||0, $revision||0);
-        $o->{DocSupplied} .= $o->encode_text("\%\%+ procset $name\n");
-        $o->{Functions} .= $o->_here_doc(<<END_USER_FUNCTIONS);
+        $!DocSupplied ~= self.encode_text("\%\%+ procset $name\n");
+        $!Functions ~= qq:to<END_USER_FUNCTIONS>;
             \%\%BeginResource: procset $name
             $entry
             \%\%EndResource
@@ -2811,9 +2813,10 @@ END_USER_FUNCTIONS
     return;
 }
 
-=method-content add_procset
+=begin pod
+=method-content procset
 
-  $ps->add_procset( $name, $code, [$version, [$revision]] )
+  $ps.procset( $name, $code, [$version, [$revision]] )
 
 (v2.20) Add a ProcSet containing user defined functions to the PostScript
 prolog.  C<$name> is an arbitrary identifier of this resource.  C<$code>
@@ -2831,7 +2834,7 @@ Returns true if the ProcSet was added, or false if it already existed.
 
 Example
 
-    $ps->add_procset( "My_Functions", <<END_FUNCTIONS );
+    $ps.add_procset( "My_Functions", q:to<END_FUNCTIONS> );
         % PostScript code can be freely indented
         % as leading spaces and blank lines
         % (and comments, if desired) are stripped
@@ -2847,64 +2850,63 @@ Example
         } bind def
     END_FUNCTIONS
 
-Note that C<get_procsets> (in common with the others) will return I<all> user defined functions possibly
+Note that C<procsets> (in common with the others) will return I<all> user defined functions possibly
 including those added by other classes.
 
 =method-content has_procset
 
-  $exists = $ps->has_procset( $name )
+  $exists = $ps.has_procset( $name )
 
 (v2.20) This returns true if C<$name> has already been included in the
 file.  The name should be identical to that given to
 L</add_procset>.
 
-=cut
+=end pod
 
-sub has_procset
-{
-    my ($o, $name) = @_;
-    $name = $o->quote_text($name);
-    return ($o->{DocSupplied} =~ /^\%\%\+ procset \Q$name\E /m);
+method has_procset($name) {
+    $name = self.quote_text($name);
+    return $!DocSupplied ~~ /^\%\%\+ procset $name /;
 }
 
 # Retain the old names for backwards compatibility:
-*add_function  = \&add_procset;
-*get_functions = \&get_procsets;
-*has_function  = \&has_procset;
+# my $add_function  = &add_procset;
+# my $get_functions = &get_procsets;
+# my $has_function  = &has_procset;
 
-=for Pod::Coverage
+=begin pod
+for Pod::Coverage
 add_function
 get_functions
 has_function
 
 =method-content use_functions
 
-  $ps->use_functions( @function_names )
+  $ps.use_functions( @function_names )
 
 This requests that the PostScript functions listed in
 C<@function_names> be included in this document.  See
 L<PostScript::File::Functions> for a list of available functions.
 
-=cut
+=end pod
 
-sub use_functions
-{
-  my $o = shift;
+#TODO
+#method use_functions(@functions) {
+#  for @functions -> $function (
+#    self.{use_functions} ||= do {
+#      require PostScript::File::Functions;
+#
+#      PostScript::File::Functions.new;
+#    }
+#    self.add($function);
+#  )
+#
+#  return $o;
+#} # end use_functions
 
-  (
-    $o->{use_functions} ||= do {
-      require PostScript::File::Functions;
-
-      PostScript::File::Functions->new;
-    }
-  )->add(@_);
-
-  return $o;
-} # end use_functions
-
+=begin pod
 =method-content embed_document
 
-  $code = $ps->embed_document( $filename )
+  $code = $ps.embed_document( $filename )
 
 This reads the contents of C<$filename>, which should be a PostScript
 file.  It returns a string with the contents of the file surrounded by
@@ -2914,42 +2916,41 @@ C<$filename> to the list of document supplied resources.
 You must pass the returned string to add_to_page or some other method
 that will actually include it in the document.
 
-=cut
+=end pod
 
-sub embed_document
-{
-  my ($o, $filename) = @_;
+#TODO
+method embed_document($filename) {
+  my $id = self.quote_text(substr($filename, *-234)); # in case it's long
+  my $supplied = self.encode_text("\%\%+ file $id\n");
+  $!DocSupplied ~= $supplied
+      unless index($!DocSupplied, $supplied) >= 0;
 
-  my $id = $o->quote_text(substr($filename, -234)); # in case it's long
-  my $supplied = $o->encode_text("%%+ file $id\n");
-  $o->{DocSupplied} .= $supplied
-      unless index($o->{DocSupplied}, $supplied) >= 0;
-
-  local $/;                     # Read entire file
-  open(my $in, '<:raw', $filename) or croak "Unable to open $filename: $!";
-  my $content = <$in>;
-  close $in;
+# TODO  local $/;                     # Read entire file
+#  open(my $in, '<:raw', $filename) or croak "Unable to open $filename: $!";
+  my $content = slurp($filename);
+#  close $in;
 
   # Remove TIFF or WMF preview image:
-  if ($content =~ /^\xC5\xD0\xD3\xC6/) {
-    my ($pos, $len) = unpack('V2', substr($content, 4, 8));
+  if ($content ~~ /^\xC5\xD0\xD3\xC6/) {
+    my ($pos, $len) = substr($content, 4, 8).unpack('V2');
     $content = substr($content, $pos, $len);
   } # end if EPS file with TIFF or WMF preview image
 
-  # Do CR or CRLF -> LF processing, since we read in RAW mode:
-  $content =~ s/\r\n?/\n/g;
+  # Do CR or CRLF . LF processing, since we read in RAW mode:
+  $content ~~ s:g/\r\n?/\n/;
 
   # Remove EPSI preview:
-  $content =~ s/^\s*%%BeginPreview:.*\n
-                (?:\s*%(?!%).*\n)*
-                \s*%%EndPreview.*\n//gmx;
+  $content ~~ s:g/^\s*\%\%BeginPreview:.*\n
+                [\s*\%<[-!%]>.*\n]*
+                \s*\%\%EndPreview.*\n//;
 
   return "\%\%BeginDocument: $id\n$content\n\%\%EndDocument\n";
 } # end embed_document
 
+=begin pod
 =method-content embed_font
 
-  $font_name = $ps->embed_font( $filename, [$type] )
+  $font_name = $ps.embed_font( $filename, [$type] )
 
 This reads the contents of C<$filename>, which must contain a
 PostScript font.  It calls L</add_resource> to add the font to the
@@ -2988,48 +2989,50 @@ compiled with the C<ttfont> option).
 
 =back
 
-=cut
+=end pod
 
-sub embed_font
-{
-  my ($o, $filename, $type) = @_;
-
-  unless ($type) {
-    $filename =~ /\.([^\\\/.]+)$/ or croak "No extension in $filename";
-    $type = $1;
+method embed_font($filename, $type = '') {
+  unless $type {
+    $filename ~~ /\.([^\\\/.]+)$/ or croak "No extension in $filename";
+    $type = $0;
   }
   $type = uc $type;
 
   my $in;
-  if ($type eq 'PFA') {
-    open($in, '<:raw', $filename) or croak "Unable to open $filename: $!";
-  } elsif ($type eq 'PFB') {
-    open($in, '-|:raw', $t1ascii, $filename)
-        or croak "Unable to run $t1ascii $filename: $!";
-  } elsif ($type eq 'TTF') {
-    open($in, '-|:raw', $ttftotype42, $filename)
-        or croak "Unable to run $ttftotype42 $filename: $!";
-    # Type 42 was introduced in LanguageLevel 2:
-    $o->set_min_langlevel(2);
+  given $type {
+    when 'PFA' {
+      open($in, '<:raw', $filename) or croak "Unable to open $filename: $!";
+      }
+    when 'PFB' {
+      open($in, '-|:raw', $!t1ascii, $filename)
+          or croak "Unable to run $!t1ascii $filename: $!";
+      }
+    when 'TTF' {
+      open($in, '-|:raw', $!ttftotype42, $filename)
+          or croak "Unable to run $!ttftotype42 $filename: $!";
+      # Type 42 was introduced in LanguageLevel 2:
+      self.langlevel(2);
+      }
   }
 
-  my $content = do { local $/; <$in> }; # Read entire file
+  my $content = slurp $in;
   close $in;
 
-  $content =~ s/\r\n?/\n/g;     # CR or CRLF to LF
+  $content ~~ s:g/\r\n?/\n/;     # CR or CRLF to LF
 
-  $content =~ m!/FontName\s+/(\S+)\s+def\b!
+  $content ~~ m!\/FontName\s+\/(\S+)\s+def\b!
       or croak "Unable to find font name in $filename";
   my $fontName = $1;
 
-  $o->add_resource(Font => $fontName, undef, $content);
+  self.resource(Font => $fontName, Str, $content);
 
   return $fontName;
 } # end embed_font
 
+=begin pod
 =method-content need_resource
 
-  $ps->need_resource( $type, @resources )
+  $ps.need_resource( $type, @resources )
 
 This adds resources to the DocumentNeededResources comment.  C<$type>
 is one of C<encoding>, C<file>, C<font>, C<form>, C<pattern>, or
@@ -3049,76 +3052,73 @@ Helvetica-BoldOblique, Helvetica-Oblique, Times-Roman, Times-Bold,
 Times-BoldItalic, Times-Italic, and Symbol.  But this behaviour is
 deprecated; a document should explicitly list the fonts it requires.
 If you don't use any of the standard fonts, pass S<C<< need_fonts => [] >>>
-to the constructor (or call C<< $ps->need_resource('font') >>) to
+to the constructor (or call C<< $ps.need_resource('font') >>) to
 indicate that.
 
-=cut
+=end pod
 
-sub need_resource
-{
-  my $o    = shift;
-  my $type = shift;
-
+method need_resource($type, $resource, @resources) {
   croak "Unknown resource type $type"
-      unless exists $add_resource_accepts{$type};
+      unless %add_resource_accepts{$type}:E;
 
-  my $hash = $o->{needed}{$type} ||= {};
+  my $hash = %!needed{$type} ||= {};
 
-  foreach my $res (@_) {
+  for @resources -> $res {
 
-    $hash->{ $o->encode_text(
-      join(' ', map { $o->quote_text($_) } (ref $res ? @$res : $res))
+    $hash{ self.encode_text(
+#TODO      join(' ', map { self.quote_text($_) } (ref $res ? @$res : $res))
     )} = 1;
   } # end foreach $res
 } # end need_resource
 
-=method-content get_setup
+=begin pod
+=method-content setup
 
-  $setup = $ps->get_setup
+  $setup = $ps.setup
 
 Returns the contents of the DSC Setup section, if any.
 
-=cut
+=end pod
 
-sub get_setup {
-    my $o = shift;
-    return $o->{Setup};
+multi method setup() {
+    return $!Setup;
 }
 
-=method-content add_setup
+=begin pod
+=method-content setup
 
- $ps->add_setup( $code )
+ $ps.setup( $code )
 
 This appends C<$code> to the DSC Setup section.  Use this for
 C<setpagedevice>, C<statusdict> or other settings that initialize the
 device or document.
 
-=cut
+=end pod
 
-sub add_setup {
-    my ($o, $entry) = @_;
-    $o->strip($entry);
-    $o->{Setup} .= $o->encode_text($entry) if (defined $entry);
+multi method setup($entry) {
+    self.strip($entry);
+    $!Setup ~= self.encode_text($entry) if $entry.defined;
 }
 
-=method-content get_page_setup
+=begin pod
+=method-content page_setup
 
-  $setup = $ps->get_page_setup
+  $setup = $ps.page_setup
 
 Returns the contents of the DSC PageSetup section, if any.  Note that
 this is a document-global value, although the code will be repeated on
 each page.
 
-=cut
+=end pod
 
-sub get_page_setup {
-    my $o = shift;
-    return $o->{PageSetup};
+multi method page_setup() {
+    return $!PageSetup;
 }
 
-=method-content add_page_setup
+=begin pod
+=method-content page_setup
 
-  $ps->add_page_setup( $code )
+  $ps.page_setup( $code )
 
 Appends C<$code> to the DSC PageSetup section.  Note that this is a
 document-global value, although the code will be repeated on each
@@ -3128,32 +3128,32 @@ Also note that any settings defined here will be active for each page
 seperately.  Use L</add_setup> if you want to carry settings from one
 page to another.
 
-=cut
+=end pod
 
-sub add_page_setup {
-    my ($o, $entry) = @_;
-    $o->strip($entry);
-    $o->{PageSetup} .= $o->encode_text($entry) if (defined $entry);
+multi method page_setup($entry) {
+    self.strip($entry);
+    $!PageSetup ~= self.encode_text($entry) if $entry.defined;
 }
 
-=method-content get_page
+=begin pod
+=method-content page
 
-  $code = $ps->get_page( [$page] )
+  $code = $ps.page( [$page] )
 
 Returns the PostScript code from the body of the page.
 
-=cut
+=end pod
 
-sub get_page {
-    my $o = shift;
-    my $page = shift || $o->get_page_label();
-    my $ord = $o->_get_ordinal($page);
-    return $o->{Pages}->[$ord];
+multi method get_page($page = 0) {
+    $page = self.get_page_label() unless $page;
+    my $ord = self._get_ordinal($page);
+    return @!Pages[$ord];
 }
 
+=begin pod
 =method-content add_to_page
 
-  $ps->add_to_page( [$page,] $code )
+  $ps.add_to_page( $code [,$page] )
 
 This appends C<$code> to the specified C<$page>, which can be any page
 label.  (Default: the current page)
@@ -3165,11 +3165,11 @@ create a new page after "8" not after "v".
 
 Examples
 
-    $ps->add_to_page( <<END_PAGE );
+    $ps.add_to_page( <<END_PAGE );
         ...PostScript building this page
     END_PAGE
 
-    $ps->add_to_page( "3", <<END_PAGE );
+    $ps.add_to_page( "3", <<END_PAGE );
         ...PostScript building page 3
     END_PAGE
 
@@ -3177,42 +3177,40 @@ The first example adds code onto the end of the current page.  The
 second one either adds additional code to page 3 if it exists, or
 starts a new one.
 
-=cut
+=end pod
 
-sub add_to_page {
-    my $o = shift;
-    my $page = (@_ == 2) ? shift : "";
-    my $entry = shift || "";
+method add_to_page($code, $page = '') {
     if ($page) {
-        my $ord = $o->_get_ordinal($page);
-        if (($ord == $o->{p}) and ($page ne $o->{page}[$ord])) {
-            $o->newpage($page);
+        my $ord = self._get_ordinal($page);
+        if ($ord == $!p) and ($page ne @!page[$ord]) {
+            self.newpage($page);
         } else {
-            $o->{p} = $ord;
+            $!p = $ord;
         }
     }
-    $o->strip($entry);
-    $o->{Pages}[$o->{p}] .= $o->encode_text($entry);
+    self.strip($code);
+    @!Pages[$!p] ~= self.encode_text($code);
 }
 
-=method-content get_page_trailer
+=begin pod
+=method-content page_trailer
 
-  $code = $ps->get_page_trailer
+  $code = $ps.page_trailer
 
 Returns the contents of the DSC PageTrailer section, if any.  Note that
 this is a document-global value, although the code will be repeated on
 each page.
 
-=cut
+=end pod
 
-sub get_page_trailer {
-    my $o = shift;
-    return $o->{PageTrailer};
+multi method page_trailer() {
+    return $!PageTrailer;
 }
 
-=method-content add_page_trailer
+=begin pod
+=method-content page_trailer
 
-  $ps->add_page_trailer( $code )
+  $ps.page_trailer( $code )
 
 Appends C<$code> to the DSC PageTrailer section.  Note that this is a
 document-global value, although the code will be repeated on each
@@ -3221,51 +3219,51 @@ page.
 Code added here is output after each page.  It may refer to settings
 made during L</add_page_setup> or L</add_to_page>.
 
-=cut
+=end pod
 
-sub add_page_trailer {
-    my ($o, $entry) = @_;
-    $o->strip($entry);
-    $o->{PageTrailer} .= $o->encode_text($entry) if (defined $entry);
+multi method page_trailer($entry) {
+    self.strip($entry);
+    $!PageTrailer ~= self.encode_text($entry) if $entry.defined;
 }
 
-=method-content get_trailer
+=begin pod
+=method-content trailer
 
-  $code = $ps->get_trailer
+  $code = $ps.trailer
 
 Returns the contents of the document's DSC Trailer section, if any.
 
-=cut
+=end pod
 
-sub get_trailer {
-    my $o = shift;
-    return $o->{Trailer};
+multi method trailer() {
+    return $!Trailer;
 }
 
-=method-content add_trailer
+=begin pod
+=method-content trailer
 
-  $ps->add_trailer( $code )
+  $ps.trailer( $code )
 
 Appends C<$code> to the document's DSC Trailer section.  Use this for
 any tidying up after all the pages are output.
 
-=cut
+=end pod
 
-sub add_trailer {
-    my ($o, $entry) = @_;
-    $o->strip($entry);
-    $o->{Trailer} .= $o->encode_text($entry) if (defined $entry);
+multi method trailer($entry) {
+    self.strip($entry);
+    $!Trailer ~= self.encode_text($entry) if $entry.defined;
 }
 
 #=============================================================================
 
+=begin pod
 =head1 POSTSCRIPT DEBUGGING SUPPORT
 
 This section documents the PostScript functions which provide debugging output.  Please note that any clipping or
 bounding boxes will also hide the debugging output which by default starts at the top left of the page.  Typical
 C<new> options required for debugging would include the following.
 
-    $ps = PostScript::File->new (
+    $ps = PostScript::File.new (
             errors => "page",
             debug => 2,
             clipcmd => "stroke" );
@@ -3300,13 +3298,13 @@ Judicious use of C<db_active> can help there.
 This function is only available if 'clipping' is set.  By calling the Perl method C<draw_bounding_box> (and
 resetting with C<clip_bounding_box>) it is possible to use this to identify areas on the page.
 
-    $ps->draw_bounding_box();
-    $ps->add_to_page( <<END_CODE );
+    $ps.draw_bounding_box();
+    $ps.add_to_page( <<END_CODE );
         ...
         my_l my_b my_r my_t cliptobox
         ...
     END_CODE
-    $ps->clip_bounding_box();
+    $ps.clip_bounding_box();
 
 =head3 msg B<report_error>
 
@@ -3411,40 +3409,36 @@ Moves output right by C<db_xtab>.  No stack requirements.  Useful for indenting 
 
 Moves output left by C<db_xtab>.  No stack requirements.
 
-=for Pod::Coverage
+for Pod::Coverage
 clip_bounding_box
 draw_bounding_box
 
-=cut
+=end pod
 
-sub draw_bounding_box {
-    my $o = shift;
-    $o->{clipcmd} = "stroke";
+method draw_bounding_box {
+    $!clipcmd = "stroke";
 }
 
-sub clip_bounding_box {
-    my $o = shift;
-    $o->{clipcmd} = "clip";
+method clip_bounding_box {
+    $!clipcmd = "clip";
 }
 
 # Strip leading spaces off a here document:
 
-sub _here_doc
-{
-  my ($o, $text) = @_;
+method _here_doc($text) {
+  if $!strip_type ne 'none' {
+    self.strip($text);
+  } elsif $text ~~ /^<[ \t]>/ {
+    my $space = $0;
 
-  if ($o->{strip_type} ne 'none') {
-    $o->strip($text);
-  } elsif ($text =~ /^([ \t]+)/) {
-    my $space = $1;
-
-    $text =~ s/^$space//gm;
-    $text =~ s/^[ \t]+\n/\n/gm;
+    $text ~~ s:g/^$space//;
+    $text ~~ s:g/^[ \t]+\n/\n/;
   } # end elsif no strip but $text is indented
 
-  $o->encode_text($text);
+  self.encode_text($text);
 } # end _here_doc
 
+=begin pod
 =head1 EXPORTS
 
 No functions are exported by default.  All the functions listed in
@@ -3464,7 +3458,7 @@ applies to values that match C</^[a-zA-Z]*[0-9]*\z/>.)
 
 This function is the default value of the L</incpage_handler> attribute.
 
-=cut
+=end pod
 
 sub incpage_label ($) { ## no critic (ProhibitSubroutinePrototypes)
     my $page = shift;
@@ -3472,6 +3466,7 @@ sub incpage_label ($) { ## no critic (ProhibitSubroutinePrototypes)
 }
 #---------------------------------------------------------------------
 
+=begin pod
 =sub incpage_roman
 
   $next_label = incpage_roman( $label )
@@ -3484,26 +3479,26 @@ numbering the odd preface.
 This function is normally used as the value of the L</incpage_handler>
 attribute:
 
-  $ps->set_incpage_handler( \&PostScript::File::incpage_roman )
+  $ps.set_incpage_handler( \&PostScript::File::incpage_roman )
 
-=cut
+=end pod
 
 our $roman_max = 40;
-our @roman = qw(0 i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix
+our @roman = <0 i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix
                 xx xi xxii xxii xxiii xxiv xxv xxvi xxvii xxviii xxix
-                xxx xxi xxxii xxxii xxxiii xxxiv xxxv xxxvi xxxvii xxxviii xxxix );
+                xxx xxxi xxxii xxxiii xxxiv xxxv xxxvi xxxvii xxxviii xxxix >;
 our %roman = ();
-for (my $i = 1; $i <= $roman_max; $i++) {
-    $roman{$roman[$i]} = $i;
+for ^$roman_max -> $i {
+    %roman{@roman[$i]} = $i;
 }
 
-sub incpage_roman ($) { ## no critic (ProhibitSubroutinePrototypes)
-    my $page = shift;
-    my $pos = $roman{$page};
-    return $roman[++$pos];
+sub incpage_roman ($page) { ## no critic (ProhibitSubroutinePrototypes)
+    my $pos = %roman{$page};
+    return @roman[++$pos];
 }
 #---------------------------------------------------------------------
 
+=begin pod
 =sub check_file
 
   $pathname = check_file( $file, [$dir, [$create]] )
@@ -3513,7 +3508,7 @@ sub incpage_roman ($) { ## no critic (ProhibitSubroutinePrototypes)
 =item C<$file>
 
 An optional fully qualified path-and-file or a simple file name. If
-omitted or the empty string, the special file C<< File::Spec->devnull >>
+omitted or the empty string, the special file C<< File::Spec.devnull >>
 is returned.
 
 =item C<$dir>
@@ -3537,66 +3532,66 @@ as an empty file.
 
 L<File::Spec> is used throughout so file access should be portable.
 
-=cut
+=end pod
 
-sub check_file ($;$$) { ## no critic (ProhibitSubroutinePrototypes)
-    my ($filename, $dir, $create) = @_;
-    $create = 0 unless (defined $create);
-
-    if (not defined $filename or not length $filename) {
-        $filename = File::Spec->devnull();
+#TODO
+sub check_file ($filename, $dir, $create = 0) { ## no critic (ProhibitSubroutinePrototypes)
+    if !$filename.defined or !$filename.defined {
+        $filename = File::Spec.devnull();
     } else {
         $filename = check_tilde($filename);
-        $filename = File::Spec->canonpath($filename);
-        unless (File::Spec->file_name_is_absolute($filename)) {
-            if (defined($dir)) {
+        $filename = File::Spec.canonpath($filename);
+        unless (File::Spec.file_name_is_absolute($filename)) {
+            if $dir.defined {
                 $dir = check_tilde($dir);
-                $dir = File::Spec->canonpath($dir);
-                $dir = File::Spec->rel2abs($dir) unless (File::Spec->file_name_is_absolute($dir));
-                $filename = File::Spec->catfile($dir, $filename);
+                $dir = File::Spec.canonpath($dir);
+                $dir = File::Spec.rel2abs($dir) unless (File::Spec.file_name_is_absolute($dir));
+                $filename = File::Spec.catfile($dir, $filename);
             } else {
-                $filename = File::Spec->rel2abs($filename);
+                $filename = File::Spec.rel2abs($filename);
             }
         }
 
         my @subdirs = ();
-        my ($volume, $directories, $file) = File::Spec->splitpath($filename);
-        @subdirs = File::Spec->splitdir( $directories );
+        my ($volume, $directories, $file) = File::Spec.splitpath($filename);
+        @subdirs = File::Spec.splitdir( $directories );
 
         my $path = $volume;
-        foreach my $dir (@subdirs) {
-            $path = File::Spec->catdir( $path, $dir );
-            mkdir $path unless (-d $path);
+        for @subdirs -> $dir {
+            $path = File::Spec.catdir( $path, $dir );
+            mkdir $path unless $path.d;
         }
 
-        $filename = File::Spec->catfile($path, $file);
+        $filename = File::Spec.catfile($path, $file);
         if ($create) {
-            unless (-e $filename) {
-                open(my $file, ">", $filename)
-                    or die "Unable to open \'$filename\' for writing : $!\nStopped";
-                close $file;
-            }
+#TODO
+#            unless -e $filename {
+#                open(my $file, ">", $filename)
+#                    or die "Unable to open \'$filename\' for writing : $!\nStopped";
+#                close $file;
+#            }
         }
     }
 
     return $filename;
 }
 
+=begin pod
 =sub check_tilde
 
   $expanded_path = check_tilde( $path )
 
 Expands a leading C<~> or C<~user> in C<$path> to the home directory.
 
-=cut
+=end pod
 
-sub check_tilde ($) { ## no critic (ProhibitSubroutinePrototypes)
-    my ($dir) = @_;
-    $dir = "" unless defined $dir;
-    $dir =~ s{^~([^/]*)}{$1 ? (getpwnam($1))[7] : ($ENV{HOME} || $ENV{LOGDIR} || (getpwuid($>))[7]) }ex;
+#TODO
+sub check_tilde ($dir = '') { ## no critic (ProhibitSubroutinePrototypes)
+#TODO    $dir ~~ s{^~(<[-/]>*)}{$1 ?? (getpwnam($1))[7] !! (%ENV<HOME> || %ENV<LOGDIR> || (getpwuid())[7]) };
     return $dir;
 }
 
+=begin pod
 =sub array_as_string
 
   $code = array_as_string( @array )
@@ -3605,17 +3600,18 @@ Converts a Perl array to a PostScript array literal.  The array
 elements are used as-is.  If you want an array of strings, you should
 do something like:
 
-  $code = array_as_string( map { $ps->pstr($_) } @array )
+  $code = array_as_string( map { $ps.pstr($_) } @array )
 
-=cut
+=end pod
 
-sub array_as_string (@) { ## no critic (ProhibitSubroutinePrototypes)
+sub array_as_string(@array) is export { ## no critic (ProhibitSubroutinePrototypes)
     my $array = "[ ";
-    foreach my $f (@_) { $array .= "$f "; }
-    $array .= "]";
+    for @array -> $f { $array ~= "$f "; }
+    $array ~= "]";
     return $array;
 }
 
+=begin pod
 =sub str
 
   $code = str( $value )
@@ -3626,50 +3622,46 @@ simplify passing colors to the PostScript function
 L<PostScript::File::Functions/setColor>, which expects either an RGB
 array or a greyscale decimal.
 
-=cut
+=end pod
 
-sub str ($) { ## no critic (ProhibitSubroutinePrototypes)
-    my $arg = shift;
-    if (ref($arg) eq "ARRAY") {
-        return array_as_string( @$arg );
-    } else {
-        return $arg;
-    }
-}
+#TODO
+#sub str ($arg) is export { ## no critic (ProhibitSubroutinePrototypes)
+#    if (ref($arg) eq "ARRAY") {
+#        return array_as_string( @$arg );
+#    } else {
+#        return $arg;
+#    }
+#}
 #---------------------------------------------------------------------
 
 my %special = (
   "\n" => '\n', "\r" => '\r', "\t" => '\t', "\b" => '\b',
   "\f" => '\f', "\\" => "\\\\", "("  => '\(', ")"  => '\)',
 );
-my $specialKeys = join '', keys %special;
-$specialKeys =~ s/\\/\\\\/;     # Have to quote backslash
+my $specialKeys = join '', %special.keys;
+$specialKeys ~~ s/\\/\\\\/;     # Have to quote backslash
 
-sub pstr {
-  my $o;
-  $o = shift if @_ > 1;         # We were called as a method
-  my $string = shift;
-  my $nowrap = shift;           # Pass this ONLY when method call
-
+method pstr($string, $nowrap = 0) {
   # Possibly convert \x2D (hyphen-minus) to hyphen or minus sign:
-  $string = $o->convert_hyphens($string)
-      if ref $o and $o->{auto_hyphen} and $string =~ /-/;
+  $string = self.convert_hyphens($string)
+      if $!auto_hyphen and $string ~~ /\-/;
 
   # Now form the parenthesized string:
-  $string =~ s/([$specialKeys])/$special{$1}/go;
+  $string ~~ s:g/([$specialKeys])/%special{$0}/;
   $string = "($string)";
   # A PostScript file should not have more than 255 chars per line:
-  $string =~ s/(.{240}[^\\])/$1\\\n/g unless $nowrap;
-  $string =~ s/^([ %])/\\$1/mg; # Make sure it doesn't get stripped
+  $string ~~ s:g/(. ** 240<[-\\]>)/$0\\\n/ unless $nowrap;
+  $string ~~ s:g/^(<[ %]>)/\\$0/; # Make sure it doesn't get stripped
 
   $string;
 } # end pstr
 
+=begin pod
 =method-text pstr
 
-  $code = $ps->pstr( $string, [$nowrap] )
+  $code = $ps.pstr( $string, [$nowrap] )
 
-  $code = PostScript::File->pstr( $string, [$nowrap] )
+  $code = PostScript::File.pstr( $string, [$nowrap] )
 
   $code = pstr( $string )
 
@@ -3693,9 +3685,9 @@ For this reason, C<pstr> should normally be called as an object method.
 
   $quoted = quote_text( $string )
 
-  $quoted = PostScript::File->quote_text( $string )
+  $quoted = PostScript::File.quote_text( $string )
 
-  $quoted = $ps->quote_text( $string )
+  $quoted = $ps.quote_text( $string )
 
 Quotes the string if it contains special characters, making it
 suitable for a DSC comment.  Strings without special characters are
@@ -3704,25 +3696,20 @@ returned unchanged.
 This may also be called as a class or object method, but it does not
 do hyphen-minus translation, even if L</auto_hyphen> is true.
 
-=cut
+=end pod
 
-sub quote_text
+method quote_text
 {
-  my $o;
-  $o = shift if @_ > 1;         # We were called as a method
-
   my $string = shift;
 
-  return $string if $string =~ m(^[-+_./*A-Za-z0-9]+\z);
+#TODO  return $string if $string ~~ (^<[+-_./*A-Za-z0-9]>+\z);
 
-  __PACKAGE__->pstr($string, 1);
+  self.pstr($string, 1);
 } # end quote_text
 
 #=============================================================================
-1;
 
-__END__
-
+=begin pod
 =head1 VERSION
 
 This document describes version {{$version}} of PostScript::File,
@@ -3741,16 +3728,16 @@ reading and writing.  The read accessor is prefixed with C<get_>, and
 the write accessor is prefixed with C<set_>.  If no write accessor is
 mentioned, then the attribute is read-only.
 
-=begin Pod::Loom-group_attr *
+= Pod::Loom-group_attr *
 
-=begin Pod::Loom-group_attr paper
+= Pod::Loom-group_attr paper
 
 =head2 Paper Size and Margins
 
 These attributes are interrelated, and changing one may change the
 others.
 
-=begin Pod::Loom-group_attr page
+= Pod::Loom-group_attr page
 
 =head2 Page Attributes
 
@@ -3765,25 +3752,25 @@ C<$page> is omitted, it defaults to the current page.
 Note: In the following descriptions, C<[]> are used to denote optional
 parameters, I<not> array references.
 
-=begin Pod::Loom-group_method construct
+= Pod::Loom-group_method construct
 
 =head2 Constructor
 
-=begin Pod::Loom-group_method main
+= Pod::Loom-group_method main
 
 =head2 Main Methods
 
-=begin Pod::Loom-group_method access
+= Pod::Loom-group_method access
 
 =head2 Access Methods
 
 Use these C<get_> and C<set_> methods to access a PostScript::File object's data.
 
-=begin Pod::Loom-group_method content
+= Pod::Loom-group_method content
 
 =head2 Content Methods
 
-=begin Pod::Loom-group_method text
+= Pod::Loom-group_method text
 
 =head2 Text Processing Methods
 
@@ -3817,7 +3804,7 @@ L<{{ $meta{resources}{repository}{web} }}>.
 
 Copyright 2002, 2003 Christopher P Willmot.  All rights reserved.
 
-Copyright {{$zilla->copyright_year}} Christopher J. Madsen. All rights reserved.
+Copyright {{$zilla.copyright_year}} Christopher J. Madsen. All rights reserved.
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
@@ -3848,7 +3835,7 @@ L<PostScript::Graph::Bar>,
 L<PostScript::Graph::Stock>.
 
 
-=for Pod::Loom-sections
+= Pod::Loom-sections
 NAME
 VERSION
 SYNOPSIS
@@ -3864,4 +3851,5 @@ COPYRIGHT AND LICENSE
 SEE ALSO
 DISCLAIMER OF WARRANTY
 
-=cut
+=end pod
+}

@@ -1,5 +1,5 @@
 #---------------------------------------------------------------------
-package PostScript::File::Functions;
+unit class PostScript::File::Functions;
 #
 # Copyright 2012 Christopher J. Madsen
 #
@@ -17,15 +17,15 @@ package PostScript::File::Functions;
 # ABSTRACT: Collection of useful PostScript functions
 #---------------------------------------------------------------------
 
-use 5.008;
-use strict;
-use warnings;
+#use 5.008;
+#use strict;
+#use warnings;
 
 our $VERSION = '2.20';
 # This file is part of {{$dist}} {{$dist_version}} ({{$date}})
 
-use Carp qw(croak);
-use PostScript::File 2.20 (); # strip method
+#use Carp qw(croak);
+#use PostScript::File 2.20 (); # strip method
 
 # Constant indexes of the arrayrefs in the _functions hash:
 sub _id_       () { 0 } ## no critic
@@ -41,17 +41,17 @@ sub _init_module
 {
   my ($class, $fh) = @_;
 
-  my $function = $class->_functions;
+  my $function = $class._functions;
   my @keys;
   my $routine;
 
   while (<$fh>) {
-    if (/^%-+$/) {
-      PostScript::File::->strip(all_comments => $routine);
+    if (/^\%\-\+$/) {
+      PostScript::File::.strip(all_comments => $routine);
       next unless $routine;
-      $routine =~ m!^/(\w+)! or die "Can't find name in $routine";
-      push @keys, $1;
-      $function->{$1} = [ undef, $routine ];
+      $routine ~~ m!^\/(\w+)! or die "Can't find name in $routine";
+      @keys.push: $1;
+      $function.{$1} = [ Nil, $routine ];
       $routine = '';
     }
 
@@ -59,44 +59,42 @@ sub _init_module
   } # end while <DATA>
 
   my $id = 'A';
-  $id   .= 'A' while @keys > 26 ** length $id;
+  $id   ~= 'A' while @keys > 26 ** $id.length;
 
-  my $re = join('|', @keys);
-  $re = qr/\b($re)\b/;
+  my $re = rx/<<@keys>>/;
 
-  for my $name (@keys) {
-    my $f = $function->{$name};
+  for (@keys) -> $name {
+    my $f = $function.{$name};
     $$f[_id_] = $id++;
 
     my %req;
 
-    $req{$_} = 1 for $$f[_code_] =~ m/$re/g;
-    delete $req{$name};
+    %req{$_} = 1 for $$f[_code_] ~~ m:g/$re/;
+    %req{$name}:delete;
 
     $$f[_requires_] = [ keys %req ] if %req;
   } # end for each $f in @keys
 
   close $fh;
-
-  1;
 } # end _init_module
 #=====================================================================
 
+=begin pod
 =method new
 
-  $funcs = PostScript::File::Functions->new;
+  $funcs = PostScript::File::Functions.new;
 
 The constructor takes no parameters.
 
-=cut
+=end pod
 
-sub new
-{
-  my ($class) = @_;
-
-  # Create the object:
-  bless {}, $class;
-} # end new
+#sub new
+#{
+#  my ($class) = @_;
+#
+#  # Create the object:
+#  bless {}, $class;
+#} # end new
 
 #---------------------------------------------------------------------
 # The hash of available functions (class attribute):
@@ -106,19 +104,18 @@ sub new
 
 {
 my %functions;
-sub _functions
-{
-  my $self = shift;
-
-  $functions{ref($self) || $self} ||= {};
-} # end _functions
+#method _functions
+#{
+#  $functions{ref($self) || $self} ||= {};
+#} # end _functions
 } # end scope of %functions
 
 #---------------------------------------------------------------------
 
+=begin pod
 =method add
 
-  $funcs->add('functionRequested', ...);
+  $funcs.add('functionRequested', ...);
 
 Add one or more functions to the procset to be generated.  All
 dependencies of the requsted functions are added automatically.  See
@@ -129,31 +126,30 @@ L</"POSTSCRIPT FUNCTIONS"> for the list of available functions.
 You requsted a function that this version of
 PostScript::File::Functions doesn't provide.
 
-=cut
+=end pod
 
-sub add
+method add(*@names)
 {
-  my ($self, @names) = @_;
-
-  my $available = $self->_functions;
+  my $available = self._functions;
 
   while (@names) {
     my $name = shift @names;
 
-    croak "$name is not an available function" unless $available->{$name};
-    $self->{$name} = 1;
+    fail "$name is not an available function" unless $available.{$name};
+    self.{$name} = 1;
 
-    next unless my $need = $available->{$name}[_requires_];
-    push @names, grep { not $self->{$_} } @$need;
+    next unless my $need = $available.{$name}[_requires_];
+    @names.push: @$need.grep: { not self.{$_} };
   } # end while @names to add
 
-  return $self;
+  return self;
 } # end add
 #---------------------------------------------------------------------
 
+=begin pod
 =method generate_procset
 
-  ($name, $code, $version) = $funcs->generate_procset($basename);
+  ($name, $code, $version) = $funcs.generate_procset($basename);
 
 This collects the requsted functions into a block of PostScript code.
 
@@ -168,65 +164,62 @@ C<$version> is the version number of the procset.
 
 In scalar context, returns C<$code>.
 
-=cut
+=end pod
 
-sub generate_procset
+method generate_procset($name)
 {
-  my ($self, $name) = @_;
-
-  my @list = sort { $a->[_id_] cmp $b->[_id_] }
-                  @{ $self->_functions }{ keys %$self };
-
-  my $code = join('', map { $_->[_code_] } @list);
-
-  my $blkid = join('', map { $_->[_id_] } @list);
-
-  unless (defined $name) {
-    $name = ref $self;
-    $name =~ s/::/_/g;
-  }
-
-  return wantarray
-      ? ("$name-$blkid", $code, $self->VERSION)
-      : $code;
-} # end generate_procset
+#  my @list = @{ self._functions } { keys %self }.sort { $^a.[_id_] cmp $^b.[_id_] }
+#                  @{ self._functions }{ keys %self };
+#
+#  my $code = join('', map { $_.[_code_] } @list);
+#
+#  my $blkid = join('', map { $_.[_id_] } @list);
+#
+#  unless (defined $name) {
+#    $name = ref $self;
+#    $name =~ s/::/_/g;
+#  }
+#
+#  return wantarray
+#      ? ("$name-$blkid", $code, $self.VERSION)
+#      : $code;
+}
 #---------------------------------------------------------------------
 
+=begin pod
 =method add_to_file
 
-  $funcs->add_to_file($ps, $basename);
+  $funcs.add_to_file($ps, $basename);
 
 This is short for
 
-  $ps->add_procset( $funcs->generate_procset($basename) );
+  $ps.add_procset( $funcs.generate_procset($basename) );
 
 C<$ps> should normally be a PostScript::File object.
 See L<PostScript::File/add_procset>.
 
-=cut
+=end pod
 
-sub add_to_file
+method add_to_file($ps)
 {
-  my $self = shift;
-  my $ps   = shift;
-
-  $ps->add_procset( $self->generate_procset(@_) );
+  $ps.add_procset( self.generate_procset(@_) );
 } # end add_to_file
 
 #=====================================================================
 # Package Return Value:
 
-__PACKAGE__->_init_module(\*DATA);
+#TODO __PACKAGE__._init_module(\*DATA);
 
 #use YAML::Tiny; print Dump(\%function);
 
+=begin pod
 =head1 SYNOPSIS
 
   use PostScript::File;
 
-  my $ps = PostScript::File->new;
-  $ps->use_functions(qw( setColor showCenter ));
-  $ps->add_to_page("1 setColor\n" .
+  my $ps = PostScript::File.new;
+  $ps.use_functions(qw( setColor showCenter ));
+  $ps.add_to_page("1 setColor\n" .
                    "400 400 (Hello, World!) showCenter\n");
 
 =head1 DESCRIPTION
@@ -236,7 +229,7 @@ functions that can be used in documents created with PostScript::File.
 You don't normally use this module directly; PostScript::File's
 C<use_functions> method loads it automatically.
 
-=for Pod::Loom-insert_after
+#=for Pod::Loom-insert_after
 DESCRIPTION
 POSTSCRIPT FUNCTIONS
 
@@ -245,14 +238,14 @@ POSTSCRIPT FUNCTIONS
 While you don't normally deal with PostScript::File::Functions objects
 directly, it is possible.  The following methods are available:
 
-=for Pod::Loom-sort_method
+#=for Pod::Loom-sort_method
 new
 
 =head1 POSTSCRIPT FUNCTIONS
 
-=cut
+=end pod
 
-__DATA__
+=begin data
 
 %---------------------------------------------------------------------
 % Set the color:  RGB-ARRAY|BW-NUMBER setColor
@@ -443,3 +436,4 @@ __DATA__
 
 %---------------------------------------------------------------------
 %EOF
+=end data

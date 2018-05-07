@@ -1,3 +1,4 @@
+
 #---------------------------------------------------------------------
 use v6;
 class PostScript::File:auth<kjpye>:ver<0.0.1> {
@@ -8,7 +9,7 @@ class PostScript::File:auth<kjpye>:ver<0.0.1> {
 #
 # Author: Chris Willmot         <chris AT willmot.co.uk>
 #         Christopher J. Madsen <perl AT cjmweb.net>
-#         Kevin Pye
+#         Kevin Pye             <kjpye AT cpan.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the same terms as Perl 5 or Perl 6.
@@ -23,10 +24,6 @@ class PostScript::File:auth<kjpye>:ver<0.0.1> {
 
 has $!VERSION = '0.0.1';
 # This file is part of {{$dist}} {{$dist_version}} ({{$date}})
-
-sub croak() {
-    die($_);
-}
 
 #use Carp 'croak';
 #use File::Spec ();
@@ -753,8 +750,7 @@ Y position of the error message on the page.  (Default: (72))
 
 =end pod
 
-method newpage {
-    my $page = shift;
+method newpage($page) {
     my $oldpage = @!page[$!p];
     # Don't use _def here, because we don't want to call
     # incpage_handler if the user supplied a page label:
@@ -857,7 +853,7 @@ method _pre_pages($landscape, $clipping, $filename) {
 END_FONTS
         $fonts ~= "\n% Reencode the fonts:\n";
         # If no fonts listed, assume the standard ones:
-        %!needed<font> ||= do for @fonts map { $_ => 1 };
+        %!needed<font> ||= %(@fonts Z=> 1);
 
         for (self.needed<font>.keys,
                            self.embed_fonts.keys).flat.sort -> $font {
@@ -1228,7 +1224,7 @@ method _post_pages {
 
 method output($filename, $dir) {
 ###TODO
-    my $fh = openhandle $filename;
+    my $fh = $filename.IO;
     # Don't permanently change filename:
 #TODO    temp self.{filename} = self.{filename};
     self.set_filename($filename, $dir) if $dir.defined and not $fh;
@@ -1308,7 +1304,7 @@ END_DEBUG_END
                 $pagebb = self._bbox_comment(Page => [ @pbox[1,0,3,2] ]);
             } else {
                 $landscape = "";
-                $pagebb = self._bbox_comment(Page => \@pbox);
+                $pagebb = self._bbox_comment(Page => @pbox);
             }
             my $cliptobox = @!pageclip[$p] ?? "@pbox[0] @pbox[1] @pbox[2] @pbox[3] cliptobox" !! "";
             $postscript ~= qq:to<END_PAGE_SETUP>;
@@ -1393,10 +1389,10 @@ method testable_output($verbatim) {
   unless ($verbatim) {
     # Remove PostScript::File generated code:
 # TODO -- check original flags on these substitutions
-    $ps ~~ s:g/^\%\%BeginResource: procset PostScript_File.*?^\%\%EndResource\n//;
-    $ps ~~ s:g/^\%\%\+ procset PostScript_File.*\n//;
-    $ps ~~ s/^\% Handle font encoding:\n.*?^\% end font encoding\n//;
-    $ps ~~ s/^\% Local Variables:\n.*?^\% End:\n//;
+    $ps ~~ s:g/^'%%BeginResource: procset PostScript_File'.*?^\%\%EndResource\n//;
+    $ps ~~ s:g/^'%%+ procset PostScript_File'.*\n//;
+    $ps ~~ s/^'% Handle font encoding:'\n.*?^'% end font encoding'\n//;
+    $ps ~~ s/^'% Local Variables:'\n.*?^'% End:'\n//;
 #TODO    $ps ~~ s/^\%\%Trailer\n(?=\%\%EOF\n)//;
   } # end unless $verbatim
 
@@ -1419,10 +1415,8 @@ method _bbox_comment($type, @bbox) {
   "\%\%{$type}BoundingBox: $comment\n";
 } # end _bbox_comment
 
-method _print_file
+method _print_file($filename)
 {
-  my $filename = shift;
-
 # TODO
 #  if (defined $filename) {
 #    my $outfile = openhandle $filename;
@@ -1848,18 +1842,18 @@ method _set_reencode($encoding)
   } # end if backwards compatible ISOLatin1Encoding
 
   $!reencode = %encoding_name{$encoding}
-      or croak "Invalid reencode setting $encoding";
+      or fail "Invalid reencode setting $encoding";
 
 #TODO  require Encode;  Encode.VERSION(2.21); # Need mime_name method
   $!encoding = Encode::find_encoding($encoding)
-      or croak "Can't find encoding $encoding";
+      or fail "Can't find encoding $encoding";
 } # end _set_reencode
 
 our %encode_char = (
-  8208 => pack(C => 0xAD), # U+2010 HYPHEN
-  8209 => pack(C => 0xAD), # U+2011 NON-BREAKING HYPHEN
-  8722 => pack(C => 0x2D), # U+2212 MINUS SIGN
- 65533 => pack(C => 0x3F), # U+FFFD REPLACEMENT CHARACTER
+  8208 => Buf.new(0xAD), # U+2010 HYPHEN
+  8209 => Buf.new(0xAD), # U+2011 NON-BREAKING HYPHEN
+  8722 => Buf.new(0x2D), # U+2212 MINUS SIGN
+ 65533 => Buf.new(0x3F), # U+FFFD REPLACEMENT CHARACTER
 );
 
 =begin pod
@@ -1913,12 +1907,12 @@ signs instead of hyphens.
 
 =end pod
 
-method decode_text
+method decode_text($arg)
 {
   my $encoding = $!encoding;
 
   if ($encoding and not Encode::is_utf8( $_[0] )) {
-    my $text = $encoding.decode($_[0], sub { pack U => shift });
+    my $text = $encoding.decode($_[0], sub { pack U => $arg });
     # Protect - from hyphen-minus processing if $preserve_minus:
     $text ~~ s:g/\-/\x[2212]/ if $_[1];
     $text;
@@ -1969,7 +1963,7 @@ method convert_hyphens($text)
 
     $text;
   } else {
-    shift;                      # Return text unmodified
+    $text;                      # Return text unmodified
   }
 } # end convert_hyphens
 
@@ -2079,10 +2073,10 @@ my %strip_re = (
 ); # end strip_re
 
 multi method strip_type($stript) {
-    my $strip = $stript.defined ?? 'space' !! $strip.lc ;
+    my $strip = $stript.defined ?? 'space' !! $!strip.lc ;
 
     $!strip = %strip_re{$strip};
-    croak "Invalid strip type $strip" unless $!strip.defined;
+    fail "Invalid strip type $strip" unless $!strip.defined;
     $!strip_type = $stript;
 }
 
@@ -2094,38 +2088,39 @@ multi method strip_type($stript) {
 #} # end chkpt
 
 method strip(@text, :$strip = '') {
-  my $re;
-  if $strip {
-    if %strip_re{$strip}.defined {
-      $re = %strip_re{$strip};
-    } else {
-      croak "Invalid strip type $strip";
-    }
-  } else {
-    $re = $!strip;
-  }
-
-  return unless $re;
-
-  my $pos;
-
-  for @text -> $text {
-    next unless $text.defined;
-    pos() = 0;
-    while (pos() < length) { # TODO -- what is this?
-#TODO      next if m/<~[^~]*~>/gc
-#           or m/\( (?: [^\\)]+ | \\. )* \)/sgcx;
-      $pos = pos();
-      if (s/<$re>//) {
-        pos() = $pos;
-      } else {
-        pos() = $pos;
-#TODO        m/\G[ \t]*(?:$eolRE|(?:$nonwsRE)+(?:$eolRE)?)/ogc;
-        die "Infinite loop" if pos() == $pos;
-      }
-    }
-  }
-
+###TODO###
+#  my $re;
+#  if $strip {
+#    if %strip_re{$strip}.defined {
+#      $re = %strip_re{$strip};
+#    } else {
+#      fail "Invalid strip type $strip";
+#    }
+#  } else {
+#    $re = $!strip;
+#  }
+#
+#  return unless $re;
+#
+#  my $pos;
+#
+#  for @text -> $text {
+#    next unless $text.defined;
+#    pos() = 0;
+#    while (pos() < length) { # TODO -- what is this?
+##TODO      next if m/<~[^~]*~>/gc
+##           or m/\( (?: [^\\)]+ | \\. )* \)/sgcx;
+#      $pos = pos();
+#      if (s/<$re>//) {
+#        pos() = $pos;
+#      } else {
+#        pos() = $pos;
+##TODO        m/\G[ \t]*(?:$eolRE|(?:$nonwsRE)+(?:$eolRE)?)/ogc;
+#        die "Infinite loop" if pos() == $pos;
+#      }
+#    }
+#  }
+#
   return;
 } # end strip
 #---------------------------------------------------------------------
@@ -2236,7 +2231,7 @@ multi method incpage_handler() {
 }
 
 multi method  incpage_handler($incpage) {
-    $!incpage = $incpage || \&incpage_label;
+    $!incpage = $incpage || &incpage_label;
 }
 
 =begin pod
@@ -2710,7 +2705,7 @@ multi method resource($type, $name, $params, $resource) {
     my $suptype = %supplied_type{$type};
     my $restype = '';
 
-    croak "add_resource does not accept type $type"
+    fail "add_resource does not accept type $type"
         unless defined($suptype) or %add_resource_accepts{lc $type};
 
     unless $suptype.defined {
@@ -2926,7 +2921,7 @@ method embed_document($filename) {
       unless index($!DocSupplied, $supplied) >= 0;
 
 # TODO  local $/;                     # Read entire file
-#  open(my $in, '<:raw', $filename) or croak "Unable to open $filename: $!";
+#  open(my $in, '<:raw', $filename) or fail "Unable to open $filename: $!";
   my $content = slurp($filename);
 #  close $in;
 
@@ -2993,7 +2988,7 @@ compiled with the C<ttfont> option).
 
 method embed_font($filename, $type = '') {
   unless $type {
-    $filename ~~ /\.([^\\\/.]+)$/ or croak "No extension in $filename";
+    $filename ~~ /\.([^\\\/.]+)$/ or fail "No extension in $filename";
     $type = $0;
   }
   $type = uc $type;
@@ -3001,15 +2996,15 @@ method embed_font($filename, $type = '') {
   my $in;
   given $type {
     when 'PFA' {
-      open($in, '<:raw', $filename) or croak "Unable to open $filename: $!";
+      open($in, '<:raw', $filename) or fail "Unable to open $filename: $!";
       }
     when 'PFB' {
       open($in, '-|:raw', $!t1ascii, $filename)
-          or croak "Unable to run $!t1ascii $filename: $!";
+          or fail "Unable to run $!t1ascii $filename: $!";
       }
     when 'TTF' {
       open($in, '-|:raw', $!ttftotype42, $filename)
-          or croak "Unable to run $!ttftotype42 $filename: $!";
+          or fail "Unable to run $!ttftotype42 $filename: $!";
       # Type 42 was introduced in LanguageLevel 2:
       self.langlevel(2);
       }
@@ -3020,8 +3015,8 @@ method embed_font($filename, $type = '') {
 
   $content ~~ s:g/\r\n?/\n/;     # CR or CRLF to LF
 
-  $content ~~ m!\/FontName\s+\/(\S+)\s+def\b!
-      or croak "Unable to find font name in $filename";
+  $content ~~ m!\/FontName\s+\/(\S+)\s+def<|w>!
+      or fail "Unable to find font name in $filename";
   my $fontName = $1;
 
   self.resource(Font => $fontName, Str, $content);
@@ -3058,7 +3053,7 @@ indicate that.
 =end pod
 
 method need_resource($type, $resource, @resources) {
-  croak "Unknown resource type $type"
+  fail "Unknown resource type $type"
       unless %add_resource_accepts{$type}:E;
 
   my $hash = %!needed{$type} ||= {};
@@ -3460,8 +3455,7 @@ This function is the default value of the L</incpage_handler> attribute.
 
 =end pod
 
-sub incpage_label ($) { ## no critic (ProhibitSubroutinePrototypes)
-    my $page = shift;
+sub incpage_label ($page) { ## no critic (ProhibitSubroutinePrototypes)
     return ++$page;
 }
 #---------------------------------------------------------------------
@@ -3698,10 +3692,8 @@ do hyphen-minus translation, even if L</auto_hyphen> is true.
 
 =end pod
 
-method quote_text
+method quote_text($string)
 {
-  my $string = shift;
-
 #TODO  return $string if $string ~~ (^<[+-_./*A-Za-z0-9]>+\z);
 
   self.pstr($string, 1);
